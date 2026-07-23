@@ -337,14 +337,13 @@ table.dt .amt{text-align:right;font-variant-numeric:tabular-nums;}
         <button class="btn btn-primary" onclick="saveEntry()"><i class="ti ti-device-floppy"></i>この日の記録を保存</button>
         <div class="toast ok" id="toast"></div>
 
-        <!-- 過去の記録一覧 -->
-        <div style="margin-top:20px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-            <div class="card-title" style="margin-bottom:0;"><i class="ti ti-history"></i>過去の記録</div>
-            <select id="history-month-filter" onchange="renderEntryHistory()" style="font-size:12px;padding:5px 8px;width:auto;">
-            </select>
+        <!-- その日の既存経費表示 -->
+        <div id="existing-entry-area" style="display:none;margin-top:16px;">
+          <div class="card" style="border-left:3px solid var(--amber);">
+            <div class="card-title" style="color:var(--amber);"><i class="ti ti-alert-circle"></i>この日はすでに記録があります</div>
+            <div id="existing-entry-detail"></div>
+            <div style="font-size:12px;color:var(--text-sub);margin-top:8px;">保存すると上書きされます。</div>
           </div>
-          <div id="entry-history-list"></div>
         </div>
       </div>
 
