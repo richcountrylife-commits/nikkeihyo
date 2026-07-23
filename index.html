@@ -336,6 +336,16 @@ table.dt .amt{text-align:right;font-variant-numeric:tabular-nums;}
 
         <button class="btn btn-primary" onclick="saveEntry()"><i class="ti ti-device-floppy"></i>この日の記録を保存</button>
         <div class="toast ok" id="toast"></div>
+
+        <!-- 過去の記録一覧 -->
+        <div style="margin-top:20px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+            <div class="card-title" style="margin-bottom:0;"><i class="ti ti-history"></i>過去の記録</div>
+            <select id="history-month-filter" onchange="renderEntryHistory()" style="font-size:12px;padding:5px 8px;width:auto;">
+            </select>
+          </div>
+          <div id="entry-history-list"></div>
+        </div>
       </div>
 
       <!-- 給与・社保 -->
