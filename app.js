@@ -100,13 +100,23 @@ function setSyncBadge(state) {
 
 async function gasCall(action, payload) {
   const url = window.APP_CONFIG.GAS_URL;
-  const res = await fetch(url, {
-    method: 'POST',
-    body: JSON.stringify({ action, passcode: window.APP_CONFIG.PASSCODE, payload: payload || {} })
-  });
-  const json = await res.json();
-  if (!json.success) throw new Error(json.error || 'サーバーエラー');
-  return json.data;
+  const body = JSON.stringify({ action, passcode: window.APP_CONFIG.PASSCODE, payload: payload || {} });
+  
+  // まずfetchで試みる
+  try {
+    const res = await fetch(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body
+    });
+    const json = await res.json();
+    if (!json.success) throw new Error(json.error || 'サーバーエラー');
+    return json.data;
+  } catch (e) {
+    // fetchが失敗した場合（SafariのCORS等）はno-corsで再試行
+    // no-corsはレスポンスが読めないのでGETにフォールバック
+    throw new Error('通信エラー: ' + e.message);
+  }
 }
 
 async function fetchFromServer() {
@@ -1062,9 +1072,11 @@ async function saveMeisaiToServer() {
 }
 
 // ── タブ切替時に明細タブの初期化 ──
-const _origRefreshTab = refreshTab;
 function refreshTab(name) {
-  _origRefreshTab(name);
+  if (name === 'geppo') renderGeppo();
+  if (name === 'ledger') renderLedger();
+  if (name === 'export') { renderAccountList(); renderBizList(); renderStorageInfo(); }
+  if (name === 'kyuyo') initKyuyo();
   if (name === 'meisai') {
     if (!db.meisai) db.meisai = [];
     renderMeisaiList();
@@ -1073,7 +1085,6 @@ function refreshTab(name) {
 }
 
 // ── サーバーからのloadAllでmeisaiも取得 ──
-const _origFetchFromServer = fetchFromServer;
 async function fetchFromServer() {
   setSyncBadge('syncing');
   try {
