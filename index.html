@@ -1,0 +1,576 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>RICH COUNTRY LIFE 日計表</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/dist/tabler-icons.min.css">
+<script src="config.js"></script>
+<style>
+:root{
+  --green:#3B6D11;
+  --green-light:#EAF3DE;
+  --green-mid:#639922;
+  --amber:#BA7517;
+  --amber-light:#FAEEDA;
+  --red:#A32D2D;
+  --red-light:#FCEBEB;
+  --blue:#185FA5;
+  --blue-light:#E6F1FB;
+  --purple:#534AB7;
+  --purple-light:#EEEDFE;
+  --bg:#FFF8F0;
+  --card:#FFFFFF;
+  --border:#E5DFD3;
+  --border-light:#F1EFE8;
+  --text:#3D2B12;
+  --text-sub:#8A7B66;
+  --radius-lg:16px;
+  --radius-md:10px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{
+  font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif;
+  background:var(--bg);
+  color:var(--text);
+  font-size:14px;
+  line-height:1.6;
+}
+
+/* ── ログイン画面 ── */
+#login-screen{
+  min-height:100vh;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,#FFF8F0 0%,#FEF3E7 100%);padding:20px;
+}
+.login-card{
+  background:var(--card);border-radius:var(--radius-lg);padding:36px 28px;
+  max-width:360px;width:100%;box-shadow:0 8px 30px rgba(59,109,17,0.12);text-align:center;
+}
+.login-card h1{font-size:18px;color:var(--green);margin-bottom:6px;font-weight:700;}
+.login-card p{font-size:12px;color:var(--text-sub);margin-bottom:24px;}
+.login-card input{
+  width:100%;padding:14px;font-size:20px;text-align:center;letter-spacing:8px;
+  border:2px solid var(--border);border-radius:var(--radius-md);margin-bottom:14px;
+}
+.login-card button{
+  width:100%;padding:14px;background:var(--green);color:#fff;border:none;
+  border-radius:var(--radius-md);font-size:15px;font-weight:600;cursor:pointer;
+}
+.login-error{color:var(--red);font-size:12px;margin-top:10px;display:none;}
+
+/* ── アプリ本体 ── */
+#app{display:none;min-height:100vh;}
+.app-header{
+  background:var(--green);color:#fff;padding:14px 16px;
+  display:flex;align-items:center;justify-content:space-between;
+  position:sticky;top:0;z-index:50;
+}
+.app-header h1{font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px;}
+.sync-badge{font-size:10px;background:rgba(255,255,255,0.2);padding:3px 9px;border-radius:10px;display:flex;align-items:center;gap:4px;}
+.sync-badge.syncing{animation:pulse 1s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.5;}}
+
+.layout{max-width:1100px;margin:0 auto;padding:16px;display:grid;grid-template-columns:1fr;gap:16px;}
+@media(min-width:900px){
+  .layout{grid-template-columns:220px 1fr;align-items:start;}
+}
+
+/* ── サイドナビ（PC幅） ── */
+.side-nav{display:none;}
+@media(min-width:900px){
+  .side-nav{
+    display:flex;flex-direction:column;gap:4px;background:var(--card);
+    border:1px solid var(--border-light);border-radius:var(--radius-lg);padding:10px;
+    position:sticky;top:74px;
+  }
+  .side-nav button{
+    display:flex;align-items:center;gap:10px;padding:11px 14px;border:none;background:none;
+    border-radius:var(--radius-md);font-size:13px;font-weight:500;color:var(--text-sub);
+    cursor:pointer;text-align:left;width:100%;
+  }
+  .side-nav button.active{background:var(--green-light);color:var(--green);}
+}
+
+/* ── タブバー（スマホ幅） ── */
+.tab-bar{
+  display:flex;overflow-x:auto;border-bottom:2px solid var(--border-light);
+  margin-bottom:4px;background:var(--card);border-radius:var(--radius-lg) var(--radius-lg) 0 0;
+}
+@media(min-width:900px){.tab-bar{display:none;}}
+.tab-btn{
+  flex:0 0 auto;padding:11px 12px;font-size:11px;font-weight:500;background:none;border:none;
+  border-bottom:3px solid transparent;cursor:pointer;color:var(--text-sub);
+  display:flex;align-items:center;gap:4px;white-space:nowrap;
+}
+.tab-btn.active{color:var(--green);border-bottom-color:var(--green);}
+
+.main-content{min-width:0;}
+.section{display:none;}
+.section.active{display:block;}
+
+/* ── カード共通 ── */
+.card{
+  background:var(--card);border:1px solid var(--border-light);border-radius:var(--radius-lg);
+  padding:18px;margin-bottom:14px;
+}
+.card-title{
+  font-size:13px;font-weight:600;color:var(--text-sub);margin-bottom:12px;
+  display:flex;align-items:center;gap:6px;
+}
+.form-label{font-size:11px;color:var(--text-sub);margin-bottom:4px;display:block;font-weight:500;}
+.form-row{margin-bottom:12px;}
+input[type=text],input[type=number],input[type=date],select,textarea{
+  width:100%;font-size:14px;padding:9px 11px;border:1px solid var(--border);
+  border-radius:var(--radius-md);background:#fff;color:var(--text);font-family:inherit;
+}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--green-mid);}
+
+.row2{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.row3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;}
+@media(min-width:600px){.row2-pc{display:grid;grid-template-columns:1fr 1fr;gap:14px;}}
+
+.metric{background:var(--bg);border-radius:var(--radius-md);padding:12px;text-align:center;}
+.metric-label{font-size:11px;color:var(--text-sub);margin-bottom:4px;}
+.metric-value{font-size:19px;font-weight:700;}
+.green{color:var(--green);}.red{color:var(--red);}.amber{color:var(--amber);}.blue{color:var(--blue);}
+
+.btn{
+  padding:11px 16px;border-radius:var(--radius-md);font-size:13px;font-weight:600;
+  cursor:pointer;border:none;display:inline-flex;align-items:center;justify-content:center;gap:6px;
+}
+.btn-primary{background:var(--green);color:#fff;width:100%;padding:13px;font-size:14px;}
+.btn-soft{background:var(--green-light);color:var(--green);width:100%;}
+.btn-outline{background:#fff;color:var(--text);border:1px solid var(--border);flex:1;}
+.btn-danger-outline{background:#fff;color:var(--red);border:1px solid var(--red);width:100%;}
+.btn:active{opacity:0.85;}
+
+.delete-btn{background:none;border:none;color:var(--text-sub);cursor:pointer;font-size:15px;padding:2px 6px;opacity:0.5;}
+.delete-btn:active{opacity:1;color:var(--red);}
+
+.biz-tag{
+  font-size:10px;padding:3px 9px;border-radius:10px;font-weight:600;display:inline-block;
+}
+.biz-veg{background:#EAF3DE;color:#3B6D11;}
+.biz-seminar{background:#E6F1FB;color:#185FA5;}
+.biz-other{background:#F1EFE8;color:#8A7B66;}
+
+.exp-row,.sales-extra{background:var(--bg);border-radius:var(--radius-md);padding:12px;margin-bottom:10px;}
+.exp-row-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;}
+
+.receipt-attach{display:flex;align-items:center;gap:8px;margin-top:6px;}
+.receipt-thumb{width:44px;height:44px;border-radius:8px;object-fit:cover;border:1px solid var(--border);cursor:pointer;flex-shrink:0;}
+.receipt-add-btn{display:flex;align-items:center;gap:5px;padding:8px 10px;background:#fff;border:1.5px dashed var(--border);border-radius:var(--radius-md);font-size:12px;color:var(--text-sub);cursor:pointer;flex:1;justify-content:center;}
+.receipt-remove{background:none;border:none;color:var(--red);font-size:13px;cursor:pointer;padding:4px;}
+.receipt-badge{background:var(--amber-light);color:var(--amber);font-size:9px;padding:2px 7px;border-radius:8px;display:inline-flex;align-items:center;gap:2px;}
+.receipt-uploading{background:var(--blue-light);color:var(--blue);font-size:9px;padding:2px 7px;border-radius:8px;}
+
+.month-sel-row{display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap;}
+.month-sel-row select{flex:1;min-width:120px;}
+
+.ledger-row{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border-light);font-size:13px;}
+.ledger-row:last-child{border-bottom:none;}
+.ledger-date{color:var(--text-sub);font-size:11px;}
+
+table.dt{width:100%;border-collapse:collapse;font-size:12px;}
+table.dt th{text-align:left;padding:8px 6px;color:var(--text-sub);border-bottom:2px solid var(--border-light);font-weight:600;}
+table.dt td{padding:8px 6px;border-bottom:1px solid var(--border-light);}
+table.dt .amt{text-align:right;font-variant-numeric:tabular-nums;}
+
+.empty-state{text-align:center;padding:28px;color:var(--text-sub);font-size:13px;}
+
+.toast{
+  position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+  border-radius:var(--radius-md);font-size:13px;padding:11px 22px;z-index:999;
+  display:none;box-shadow:0 4px 16px rgba(0,0,0,0.15);
+}
+.toast.ok{background:var(--green);color:#fff;}
+.toast.err{background:var(--red);color:#fff;}
+
+.drop-zone{border:2px dashed var(--border);border-radius:var(--radius-lg);padding:28px 16px;text-align:center;cursor:pointer;margin-bottom:14px;}
+.drop-zone:hover,.drop-zone.drag{background:var(--bg);border-color:var(--green-mid);}
+.drop-zone i{font-size:30px;color:var(--text-sub);margin-bottom:8px;display:block;}
+
+.jizuke-box{background:var(--bg);border-radius:var(--radius-md);padding:14px;margin-bottom:10px;}
+.jizuke-title{font-size:11px;font-weight:600;color:var(--text-sub);margin-bottom:8px;}
+.jizuke-row{display:flex;justify-content:space-between;font-size:12px;padding:5px 0;border-bottom:1px solid var(--border-light);}
+.jizuke-row:last-child{border-bottom:none;}
+
+.setting-row{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
+.setting-row label{font-size:13px;min-width:130px;font-weight:500;}
+.setting-row input{flex:1;}
+
+.already-badge{background:var(--green-light);color:var(--green);font-size:11px;padding:4px 11px;border-radius:10px;font-weight:600;}
+.storage-warn{font-size:11px;color:var(--amber);background:var(--amber-light);padding:9px 11px;border-radius:var(--radius-md);margin-bottom:10px;display:flex;align-items:center;gap:6px;}
+
+.lightbox{position:fixed;inset:0;background:rgba(0,0,0,0.85);display:none;align-items:center;justify-content:center;z-index:9999;padding:20px;}
+.lightbox.show{display:flex;}
+.lightbox img{max-width:100%;max-height:85vh;border-radius:8px;}
+.lightbox-close{position:absolute;top:16px;right:16px;background:rgba(255,255,255,0.15);color:#fff;border:none;width:36px;height:36px;border-radius:50%;font-size:18px;cursor:pointer;}
+
+.biz-mgmt-row{display:flex;align-items:center;gap:8px;margin-bottom:8px;padding:10px;background:var(--bg);border-radius:var(--radius-md);}
+.biz-mgmt-row input{flex:1;}
+
+.logout-link{background:none;border:none;color:rgba(255,255,255,0.85);font-size:12px;cursor:pointer;display:flex;align-items:center;gap:4px;}
+
+.loading-overlay{position:fixed;inset:0;background:rgba(255,248,240,0.85);display:none;align-items:center;justify-content:center;z-index:9998;flex-direction:column;gap:10px;}
+.loading-overlay.show{display:flex;}
+.spinner{width:32px;height:32px;border:3px solid var(--border);border-top-color:var(--green);border-radius:50%;animation:spin 0.8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg);}}
+
+/* ── 明細取込 ── */
+.meisai-table{width:100%;border-collapse:collapse;font-size:12px;}
+.meisai-table th{padding:8px 6px;background:var(--bg);color:var(--text-sub);border-bottom:2px solid var(--border-light);font-weight:600;white-space:nowrap;position:sticky;top:0;z-index:2;}
+.meisai-table td{padding:7px 6px;border-bottom:1px solid var(--border-light);vertical-align:middle;}
+.meisai-table tr.checked-row{opacity:0.5;}
+.meisai-table tr:hover td{background:var(--bg);}
+.meisai-table input[type=text],.meisai-table select{padding:5px 7px;font-size:12px;border-radius:6px;width:100%;}
+.meisai-table input[type=checkbox]{width:16px;height:16px;cursor:pointer;accent-color:var(--green);}
+.source-badge{font-size:10px;padding:2px 8px;border-radius:8px;font-weight:600;white-space:nowrap;}
+.source-jcb{background:#E3F2FD;color:#1565C0;}
+.source-yucho{background:#E8F5E9;color:#2E7D32;}
+.source-aozora{background:#FFF8E1;color:#F57F17;}
+.meisai-wrap{overflow-x:auto;max-height:60vh;overflow-y:auto;border:1px solid var(--border-light);border-radius:var(--radius-md);}
+.filter-bar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:center;}
+.filter-bar select,.filter-bar input{flex:1;min-width:100px;font-size:12px;padding:7px 9px;}
+.bulk-actions{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px;}
+.bulk-actions button{flex:1;padding:8px;font-size:12px;}
+.import-source-card{border:1px solid var(--border-light);border-radius:var(--radius-md);padding:12px;margin-bottom:8px;display:flex;align-items:center;gap:12px;}
+.import-source-icon{font-size:22px;width:36px;text-align:center;}
+.import-source-info{flex:1;}
+.import-source-info strong{font-size:13px;}
+.import-source-info span{font-size:11px;color:var(--text-sub);display:block;}
+.meisai-count{font-size:11px;color:var(--text-sub);margin-left:auto;}
+.unchecked-badge{background:var(--amber-light);color:var(--amber);font-size:10px;padding:2px 7px;border-radius:8px;font-weight:600;}
+.tab-badge{background:var(--red);color:#fff;font-size:9px;padding:1px 5px;border-radius:8px;margin-left:3px;vertical-align:middle;}
+</style>
+</head>
+<body>
+
+<!-- ログイン画面 -->
+<div id="login-screen">
+  <div class="login-card">
+    <h1><i class="ti ti-leaf"></i> RICH COUNTRY LIFE</h1>
+    <p>日計表・会計管理システム</p>
+    <input type="password" id="login-pass" inputmode="numeric" maxlength="6" placeholder="パスコード" />
+    <button class="btn btn-primary" onclick="tryLogin()" style="width:100%;">ログイン</button>
+    <div class="login-error" id="login-error">パスコードが違います</div>
+  </div>
+</div>
+
+<!-- アプリ本体 -->
+<div id="app">
+  <div class="app-header">
+    <h1><i class="ti ti-leaf"></i> RICH COUNTRY LIFE 日計表</h1>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <span class="sync-badge" id="sync-badge"><i class="ti ti-cloud-check"></i> 同期済み</span>
+      <button class="logout-link" onclick="logout()"><i class="ti ti-logout"></i> ログアウト</button>
+    </div>
+  </div>
+
+  <div class="loading-overlay" id="loading-overlay"><div class="spinner"></div><div style="font-size:13px;color:var(--text-sub);">読み込み中…</div></div>
+
+  <div class="layout">
+    <!-- PC幅サイドナビ -->
+    <nav class="side-nav" id="side-nav">
+      <button class="active" data-tab="nikkkei" onclick="switchTab('nikkkei',this)"><i class="ti ti-pencil"></i> 日計入力</button>
+      <button data-tab="kyuyo" onclick="switchTab('kyuyo',this)"><i class="ti ti-user"></i> 給与・社保</button>
+      <button data-tab="meisai" onclick="switchTab('meisai',this)"><i class="ti ti-bank"></i> 銀行・カード明細</button>
+      <button data-tab="import" onclick="switchTab('import',this)"><i class="ti ti-upload"></i> 売上CSV取込</button>
+      <button data-tab="geppo" onclick="switchTab('geppo',this)"><i class="ti ti-chart-bar"></i> 月報</button>
+      <button data-tab="ledger" onclick="switchTab('ledger',this)"><i class="ti ti-list"></i> 仕訳帳</button>
+      <button data-tab="export" onclick="switchTab('export',this)"><i class="ti ti-download"></i> 出力・設定</button>
+    </nav>
+
+    <div class="main-content">
+      <!-- スマホ幅タブ -->
+      <div class="tab-bar" id="tab-bar">
+        <button class="tab-btn active" data-tab="nikkkei" onclick="switchTab('nikkkei',this)"><i class="ti ti-pencil"></i>日計</button>
+        <button class="tab-btn" data-tab="kyuyo" onclick="switchTab('kyuyo',this)"><i class="ti ti-user"></i>給与</button>
+        <button class="tab-btn" data-tab="meisai" onclick="switchTab('meisai',this)"><i class="ti ti-bank"></i>明細<span class="tab-badge" id="meisai-badge" style="display:none;">!</span></button>
+        <button class="tab-btn" data-tab="import" onclick="switchTab('import',this)"><i class="ti ti-upload"></i>取込</button>
+        <button class="tab-btn" data-tab="geppo" onclick="switchTab('geppo',this)"><i class="ti ti-chart-bar"></i>月報</button>
+        <button class="tab-btn" data-tab="ledger" onclick="switchTab('ledger',this)"><i class="ti ti-list"></i>仕訳</button>
+        <button class="tab-btn" data-tab="export" onclick="switchTab('export',this)"><i class="ti ti-download"></i>出力</button>
+      </div>
+
+      <!-- 日計入力 -->
+      <div id="tab-nikkkei" class="section active">
+        <div class="row2-pc">
+        <div class="card">
+          <div class="card-title"><i class="ti ti-calendar"></i>対象日</div>
+          <input type="date" id="entry-date" />
+        </div>
+        <div class="card">
+          <div class="card-title"><i class="ti ti-building-store"></i>事業区分（売上・経費共通の既定値）</div>
+          <select id="entry-default-biz"></select>
+        </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><i class="ti ti-coin"></i>売上</div>
+          <div class="row2" style="margin-bottom:8px;">
+            <div>
+              <label class="form-label">現金売上</label>
+              <input type="number" id="sales-cash" placeholder="0" min="0" oninput="updateSalesTotal()" />
+            </div>
+            <div>
+              <label class="form-label">事業区分</label>
+              <select id="sales-cash-biz"></select>
+            </div>
+          </div>
+          <div id="extra-sales-list"></div>
+          <button class="btn btn-soft" onclick="addExtraSales()" style="margin-bottom:10px;"><i class="ti ti-plus"></i>売上項目を追加</button>
+          <div class="metric"><div class="metric-label">本日売上合計</div><div class="metric-value green" id="daily-sales-total">¥0</div></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><i class="ti ti-credit-card"></i>経費・支払い</div>
+          <div id="expense-list"></div>
+          <button class="btn btn-soft" onclick="addExpenseRow()"><i class="ti ti-plus"></i>経費を追加</button>
+        </div>
+
+        <div class="card">
+          <label class="form-label">メモ（任意）</label>
+          <input type="text" id="entry-memo" placeholder="天気・イベント等" />
+        </div>
+
+        <button class="btn btn-primary" onclick="saveEntry()"><i class="ti ti-device-floppy"></i>この日の記録を保存</button>
+        <div class="toast ok" id="toast"></div>
+      </div>
+
+      <!-- 給与・社保 -->
+      <div id="tab-kyuyo" class="section">
+        <div class="row2-pc">
+        <div class="card">
+          <div class="card-title"><i class="ti ti-settings"></i>毎月の設定</div>
+          <div class="setting-row"><label>役員報酬（総支給）</label><input type="number" id="k-salary" placeholder="45000" /><span>円</span></div>
+          <div class="setting-row"><label>社会保険料合計</label><input type="number" id="k-shakai" placeholder="23124" oninput="updateKyuyoPreview()" /><span>円</span></div>
+          <div style="font-size:11px;color:var(--text-sub);margin-bottom:10px;">※ 納入告知書の合計額（会社負担＋本人負担）</div>
+          <button class="btn btn-soft" onclick="saveKyuyoSettings()"><i class="ti ti-device-floppy"></i>設定を保存</button>
+        </div>
+        <div class="card">
+          <div class="card-title"><i class="ti ti-calculator"></i>毎月の内訳（自動計算）</div>
+          <div class="jizuke-box">
+            <div class="jizuke-row"><span>役員報酬（総支給）</span><span class="green" id="prev-salary">¥45,000</span></div>
+            <div class="jizuke-row"><span>社会保険料・本人負担分</span><span class="red" id="prev-honnin">¥11,562</span></div>
+            <div class="jizuke-row"><span>源泉所得税</span><span id="prev-gensen">¥0</span></div>
+            <div class="jizuke-row"><span style="font-weight:600;">手取り振込額</span><span style="font-weight:600;" id="prev-tedori">¥33,438</span></div>
+            <div class="jizuke-row"><span>社会保険料・会社負担分</span><span class="red" id="prev-kaisha">¥11,562</span></div>
+            <div class="jizuke-row"><span style="font-weight:600;">会社から出るお金（月計）</span><span class="red" style="font-weight:600;" id="prev-total">¥56,562</span></div>
+          </div>
+        </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><i class="ti ti-calendar"></i>記録する月</div>
+          <select id="kyuyo-month" style="margin-bottom:12px;"></select>
+          <div id="kyuyo-already" style="display:none;margin-bottom:10px;"><span class="already-badge"><i class="ti ti-check"></i> この月は記録済み</span></div>
+          <div class="row2-pc">
+          <div class="jizuke-box">
+            <div class="jizuke-title">① 役員報酬の振込（仕訳）</div>
+            <div class="jizuke-row"><span>借方：役員報酬</span><span class="blue" id="j1-salary">¥45,000</span></div>
+            <div class="jizuke-row"><span>貸方：預り金（社保本人）</span><span id="j1-honnin">¥11,562</span></div>
+            <div class="jizuke-row"><span>貸方：普通預金（手取）</span><span id="j1-tedori">¥33,438</span></div>
+          </div>
+          <div class="jizuke-box">
+            <div class="jizuke-title">② 社会保険料の納付（仕訳）</div>
+            <div class="jizuke-row"><span>借方：法定福利費（会社分）</span><span class="blue" id="j2-kaisha">¥11,562</span></div>
+            <div class="jizuke-row"><span>借方：預り金（本人分）</span><span class="blue" id="j2-honnin">¥11,562</span></div>
+            <div class="jizuke-row"><span>貸方：普通預金（納付）</span><span id="j2-total">¥23,124</span></div>
+          </div>
+          </div>
+          <button class="btn btn-primary" onclick="recordKyuyo()" style="margin-top:12px;background:var(--blue);"><i class="ti ti-check"></i>この月の給与・社保を記録する</button>
+          <div class="toast ok" id="kyuyo-toast"></div>
+        </div>
+      </div>
+
+      <!-- 銀行・カード明細取込 -->
+      <div id="tab-meisai" class="section">
+
+        <!-- ファイル取込エリア -->
+        <div class="card">
+          <div class="card-title"><i class="ti ti-bank"></i>銀行・カード明細を取込む</div>
+          <div class="import-source-card">
+            <div class="import-source-icon">💳</div>
+            <div class="import-source-info">
+              <strong>対応フォーマット</strong>
+              <span>JCB法人カード / ゆうちょ銀行 / あおぞら銀行（自動判別）</span>
+              <span style="margin-top:2px;">今後の銀行追加も対応予定</span>
+            </div>
+          </div>
+          <div class="drop-zone" id="meisai-drop" onclick="document.getElementById('meisai-file').click()" ondragover="meisaiDragOver(event)" ondragleave="meisaiDragLeave(event)" ondrop="meisaiDrop(event)">
+            <i class="ti ti-file-spreadsheet"></i>
+            <p style="font-size:13px;color:var(--text-sub);">CSVファイルをタップして選択</p>
+            <p style="margin-top:4px;font-size:11px;color:var(--text-sub);">JCB・ゆうちょ・あおぞらを自動判別します</p>
+          </div>
+          <input type="file" id="meisai-file" accept=".csv" style="display:none;" onchange="onMeisaiFileSelect(this.files[0])" />
+          <div class="toast ok" id="meisai-toast"></div>
+        </div>
+
+        <!-- 未確認件数バナー -->
+        <div id="meisai-pending-banner" style="display:none;background:var(--amber-light);border:1px solid var(--amber);border-radius:var(--radius-md);padding:12px 14px;margin-bottom:14px;display:flex;align-items:center;gap:10px;">
+          <i class="ti ti-alert-triangle" style="color:var(--amber);"></i>
+          <span id="meisai-pending-text" style="font-size:13px;font-weight:500;color:var(--amber);flex:1;"></span>
+        </div>
+
+        <!-- フィルター・一括操作 -->
+        <div id="meisai-list-area" style="display:none;">
+          <div class="filter-bar">
+            <select id="meisai-filter-month" onchange="renderMeisaiList()">
+              <option value="all">全月</option>
+            </select>
+            <select id="meisai-filter-source" onchange="renderMeisaiList()">
+              <option value="all">全口座</option>
+              <option value="JCB">JCB</option>
+              <option value="ゆうちょ">ゆうちょ</option>
+              <option value="あおぞら">あおぞら</option>
+            </select>
+            <select id="meisai-filter-checked" onchange="renderMeisaiList()">
+              <option value="all">全件</option>
+              <option value="unchecked">未確認のみ</option>
+              <option value="checked">確認済のみ</option>
+            </select>
+          </div>
+          <div class="bulk-actions">
+            <button class="btn btn-soft" onclick="bulkCheckAll()" style="font-size:12px;"><i class="ti ti-check"></i>表示中を全確認</button>
+            <button class="btn btn-outline" onclick="bulkUncheckAll()" style="font-size:12px;"><i class="ti ti-square"></i>全確認解除</button>
+            <button class="btn btn-primary" onclick="saveMeisaiToServer()" style="font-size:12px;"><i class="ti ti-cloud-upload"></i>保存・同期</button>
+          </div>
+          <div class="meisai-wrap">
+            <table class="meisai-table">
+              <thead>
+                <tr>
+                  <th style="width:32px;">確認</th>
+                  <th style="width:88px;">日付</th>
+                  <th style="width:60px;">口座</th>
+                  <th style="width:140px;">借方科目</th>
+                  <th style="width:140px;">貸方科目</th>
+                  <th style="width:80px;text-align:right;">金額</th>
+                  <th style="width:160px;">利用先（自動）</th>
+                  <th style="min-width:160px;">摘要・品目（入力）</th>
+                </tr>
+              </thead>
+              <tbody id="meisai-tbody"></tbody>
+            </table>
+          </div>
+          <div id="meisai-list-footer" style="font-size:12px;color:var(--text-sub);padding:8px 4px;"></div>
+        </div>
+      </div>
+
+      <!-- CSV取込 -->
+      <div id="tab-import" class="section">
+        <div class="card">
+          <div class="card-title"><i class="ti ti-upload"></i>売上管理システムからCSV取込</div>
+          <p style="font-size:12px;color:var(--text-sub);margin-bottom:14px;">sales_YYYY-MM.csv を読み込みます。重複する日は売上のみ上書きされます。</p>
+          <div class="row2" style="margin-bottom:14px;">
+            <div><label class="form-label">取込先の事業区分</label><select id="import-biz"></select></div>
+          </div>
+          <div class="drop-zone" id="drop-zone" onclick="document.getElementById('csv-file').click()" ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+            <i class="ti ti-file-spreadsheet"></i>
+            <p style="font-size:13px;color:var(--text-sub);">タップしてCSVを選択</p>
+            <p style="margin-top:4px;font-size:11px;color:var(--text-sub);">またはドラッグ＆ドロップ</p>
+          </div>
+          <input type="file" id="csv-file" accept=".csv" style="display:none;" onchange="handleFile(this.files[0])" />
+          <div id="import-preview" style="display:none;">
+            <div style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--text-sub);">取込プレビュー</div>
+            <div id="preview-stats" class="jizuke-box"></div>
+            <div style="max-height:200px;overflow-y:auto;margin-bottom:12px;">
+              <table class="dt"><thead><tr><th>日付</th><th class="amt">現金売上</th><th class="amt">追加</th><th>メモ</th></tr></thead><tbody id="preview-body"></tbody></table>
+            </div>
+            <button class="btn btn-primary" onclick="executeImport()"><i class="ti ti-check"></i>この内容で取込む</button>
+          </div>
+          <div class="toast ok" id="import-toast"></div>
+        </div>
+      </div>
+
+      <!-- 月報 -->
+      <div id="tab-geppo" class="section">
+        <div class="month-sel-row">
+          <select id="geppo-month" onchange="renderGeppo()"></select>
+          <select id="geppo-biz" onchange="renderGeppo()"></select>
+        </div>
+        <div class="row3" style="margin-bottom:10px;">
+          <div class="metric"><div class="metric-label">売上合計</div><div class="metric-value green" id="g-sales">¥0</div></div>
+          <div class="metric"><div class="metric-label">経費合計</div><div class="metric-value red" id="g-expense">¥0</div></div>
+          <div class="metric"><div class="metric-label">粗利益</div><div class="metric-value amber" id="g-profit">¥0</div></div>
+        </div>
+        <div class="row2" style="margin-bottom:14px;">
+          <div class="metric"><div class="metric-label">役員報酬</div><div class="metric-value blue" id="g-kyuyo">¥0</div></div>
+          <div class="metric"><div class="metric-label">営業日数</div><div class="metric-value" id="g-days">0日</div></div>
+        </div>
+        <div class="row2-pc">
+        <div class="card"><div class="card-title"><i class="ti ti-chart-pie"></i>事業別売上内訳</div><div id="g-biz-breakdown"></div></div>
+        <div class="card"><div class="card-title"><i class="ti ti-chart-pie"></i>売上項目内訳</div><div id="g-sales-breakdown"></div></div>
+        </div>
+        <div class="card"><div class="card-title"><i class="ti ti-credit-card"></i>支払手段別経費</div><div id="g-payment-breakdown"></div></div>
+        <div class="card"><div class="card-title"><i class="ti ti-calendar-stats"></i>日別サマリー</div><div id="g-daily-list"><div class="empty-state">データなし</div></div></div>
+      </div>
+
+      <!-- 仕訳帳 -->
+      <div id="tab-ledger" class="section">
+        <div class="month-sel-row">
+          <select id="ledger-month" onchange="renderLedger()"></select>
+          <select id="ledger-biz" onchange="renderLedger()"></select>
+        </div>
+        <div class="card"><div id="ledger-entries"><div class="empty-state">データなし</div></div></div>
+      </div>
+
+      <!-- 出力・設定 -->
+      <div id="tab-export" class="section">
+        <div class="card">
+          <div class="card-title"><i class="ti ti-file-spreadsheet"></i>CSV出力</div>
+          <div class="row2" style="margin-bottom:10px;">
+            <div><label class="form-label">対象月</label><select id="export-month"></select></div>
+            <div><label class="form-label">事業区分</label><select id="export-biz"></select></div>
+          </div>
+          <div class="row2" style="margin-top:8px;">
+            <button class="btn btn-outline" onclick="exportCSV('daily')"><i class="ti ti-download"></i>日計CSV</button>
+            <button class="btn btn-outline" onclick="exportCSV('monthly')"><i class="ti ti-download"></i>月報CSV</button>
+          </div>
+          <div class="row2" style="margin-top:8px;">
+            <button class="btn btn-outline" onclick="exportCSV('jizuke')"><i class="ti ti-download"></i>仕訳CSV</button>
+            <button class="btn btn-outline" onclick="exportCSV('all')"><i class="ti ti-download"></i>全データ</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><i class="ti ti-building-store"></i>事業区分の管理</div>
+          <div id="biz-list"></div>
+          <button class="btn btn-soft" onclick="addBiz()" style="margin-top:6px;"><i class="ti ti-plus"></i>事業区分を追加</button>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><i class="ti ti-receipt"></i>領収書（Googleドライブ保存）</div>
+          <div id="storage-info" style="font-size:12px;color:var(--text-sub);"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><i class="ti ti-settings"></i>勘定科目の設定</div>
+          <div id="account-list" style="margin-bottom:8px;"></div>
+          <button class="btn btn-soft" onclick="addAccount()"><i class="ti ti-plus"></i>科目を追加</button>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><i class="ti ti-cloud"></i>同期</div>
+          <button class="btn btn-outline" style="width:100%;" onclick="manualSync()"><i class="ti ti-refresh"></i>今すぐ同期する</button>
+        </div>
+
+        <div class="card">
+          <div class="card-title"><i class="ti ti-trash"></i>データ管理</div>
+          <button class="btn btn-danger-outline" onclick="clearAllData()"><i class="ti ti-trash"></i>全データをリセット</button>
+        </div>
+        <div class="toast ok" id="toast2"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+  <button class="lightbox-close" onclick="closeLightbox()"><i class="ti ti-x"></i></button>
+  <img id="lightbox-img" src="" alt="領収書画像" />
+</div>
+
+<script src="meisai.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
