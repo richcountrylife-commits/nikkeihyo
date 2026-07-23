@@ -180,22 +180,40 @@ function parseAozora(rows) {
 
 // ── CSV読み込み（文字コード自動判定） ──
 async function readCSVFile(file) {
-  // まずUTF-8で試みて失敗したらShift_JISで
-  const tryDecode = async (encoding) => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.onload = e => resolve(e.target.result);
-      reader.onerror = reject;
-      reader.readAsText(file, encoding);
-    });
-  };
+  const tryDecode = (encoding) => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = e => resolve(e.target.result);
+    reader.onerror = reject;
+    reader.readAsText(file, encoding);
+  });
 
-  let text = await tryDecode('UTF-8');
-  // 文字化けっぽければShift_JISで再試行
-  if (text.includes('ï¿½') || text.includes('縺')) {
-    text = await tryDecode('Shift_JIS');
+  // まずバイナリで読んでShift_JISかどうか判定
+  const buf = await new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = e => resolve(new Uint8Array(e.target.result));
+    r.onerror = reject;
+    r.readAsArrayBuffer(file);
+  });
+
+  // BOMチェック（UTF-8 BOMは EF BB BF）
+  const hasUtf8Bom = buf[0] === 0xEF && buf[1] === 0xBB && buf[2] === 0xBF;
+  if (hasUtf8Bom) return await tryDecode('UTF-8');
+
+  // Shift_JISっぽいバイトが含まれているか確認
+  // （0x81〜0x9F または 0xE0〜0xFC が先行バイトとして存在）
+  let looksShiftJis = false;
+  for (let i = 0; i < Math.min(buf.length, 2000); i++) {
+    const b = buf[i];
+    if ((b >= 0x81 && b <= 0x9F) || (b >= 0xE0 && b <= 0xFC)) {
+      looksShiftJis = true;
+      break;
+    }
   }
-  return text;
+
+  if (looksShiftJis) return await tryDecode('Shift_JIS');
+
+  // デフォルトはUTF-8
+  return await tryDecode('UTF-8');
 }
 
 function parseCSVText(text) {
