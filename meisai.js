@@ -201,16 +201,12 @@ async function readCSVFile(file) {
 
   // Shift_JISっぽいバイトが含まれているか確認
   // （0x81〜0x9F または 0xE0〜0xFC が先行バイトとして存在）
-  let looksShiftJis = false;
-  for (let i = 0; i < Math.min(buf.length, 2000); i++) {
+ for (let i = 0; i < Math.min(buf.length, 2000); i++) {
     const b = buf[i];
     if ((b >= 0x81 && b <= 0x9F) || (b >= 0xE0 && b <= 0xFC)) {
-      looksShiftJis = true;
-      break;
+      return await tryDecode('Shift_JIS');
     }
   }
-
-  if (looksShiftJis) return await tryDecode('Shift_JIS');
 
   // デフォルトはUTF-8
   return await tryDecode('UTF-8');
