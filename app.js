@@ -93,7 +93,7 @@ async function fetchFromServer() {
     saveLocalCache();
     setSyncBadge('ok');
     renderBizSelects(); renderAccountList(); renderBizList(); populateMonthSelects();
-    refreshActiveTab(); updateMeisaiBadge();
+    refreshActiveTab(); updateMeisaiBadge(); renderEntryHistory();
   } catch(e) {
     console.error(e);
     setSyncBadge('err');
@@ -325,6 +325,7 @@ async function saveEntry() {
     document.getElementById('sales-cash').value = ''; document.getElementById('entry-memo').value = '';
     document.getElementById('extra-sales-list').innerHTML = ''; document.getElementById('expense-list').innerHTML = '';
     extraSalesIds = []; expenseIds = []; updateSalesTotal();
+    renderEntryHistory();
   } catch(e) { console.error(e); showToast('保存中にエラーが発生しました', 'toast', 'err'); }
   finally { document.getElementById('loading-overlay').classList.remove('show'); }
 }
@@ -750,4 +751,156 @@ async function saveMeisaiToServer() {
   document.getElementById('loading-overlay').classList.add('show');
   try { const ok = await pushToServer('saveMeisai', db.meisai); if (ok) showMeisaiToast('明細データを保存しました ✓'); }
   finally { document.getElementById('loading-overlay').classList.remove('show'); }
+}
+
+// ============================================
+// 過去の記録一覧・編集・削除
+// ============================================
+function renderEntryHistory() {
+  // 月フィルタの選択肢を更新
+  const months = getMonths();
+  const sel = document.getElementById('history-month-filter');
+  if (!sel) return;
+  const prev = sel.value;
+  sel.innerHTML = months.map(m => `<option value="${m}">${m.replace('-','年')}月</option>`).join('');
+  if (prev && months.includes(prev)) sel.value = prev;
+
+  const month = sel.value;
+  const entries = db.entries.filter(e => e.date.startsWith(month)).slice().reverse();
+  const container = document.getElementById('entry-history-list');
+  if (!container) return;
+
+  if (!entries.length) {
+    container.innerHTML = '<div class="empty-state" style="padding:16px;">この月の記録はありません</div>';
+    return;
+  }
+
+  container.innerHTML = entries.map(e => {
+    const totalSales = e.salesCash + (e.extraSales || []).reduce((a, x) => a + x.amount, 0);
+    const totalExp = (e.expenses || []).reduce((a, x) => a + x.amount, 0);
+    const expList = (e.expenses || []).map(ex =>
+      `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border-light);font-size:11px;">
+        <span style="color:var(--text-sub);">${ex.account}${ex.desc ? ' / '+ex.desc : ''} (${ex.payment})</span>
+        <span class="red">¥${ex.amount.toLocaleString()}</span>
+      </div>`
+    ).join('');
+    const extraList = (e.extraSales || []).map(es =>
+      `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border-light);font-size:11px;">
+        <span style="color:var(--text-sub);">${es.name}</span>
+        <span class="green">¥${es.amount.toLocaleString()}</span>
+      </div>`
+    ).join('');
+
+    return `<div class="card" style="margin-bottom:10px;padding:12px;" id="history-${e.date}">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <div>
+          <span style="font-weight:600;font-size:14px;">${e.date}</span>
+          ${e.memo ? `<span style="font-size:11px;color:var(--text-sub);margin-left:8px;">${e.memo}</span>` : ''}
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button class="btn btn-outline" style="padding:5px 10px;font-size:11px;" onclick="editEntry('${e.date}')">
+            <i class="ti ti-pencil"></i>編集
+          </button>
+          <button class="btn btn-outline" style="padding:5px 10px;font-size:11px;color:var(--red);" onclick="deleteEntry('${e.date}')">
+            <i class="ti ti-trash"></i>削除
+          </button>
+        </div>
+      </div>
+      <div style="display:flex;gap:12px;margin-bottom:6px;">
+        <div class="metric" style="flex:1;padding:8px;">
+          <div class="metric-label">売上</div>
+          <div style="font-size:15px;font-weight:600;" class="green">¥${totalSales.toLocaleString()}</div>
+        </div>
+        <div class="metric" style="flex:1;padding:8px;">
+          <div class="metric-label">経費</div>
+          <div style="font-size:15px;font-weight:600;" class="red">¥${totalExp.toLocaleString()}</div>
+        </div>
+        <div class="metric" style="flex:1;padding:8px;">
+          <div class="metric-label">粗利</div>
+          <div style="font-size:15px;font-weight:600;" class="${totalSales-totalExp >= 0 ? 'green' : 'red'}">¥${(totalSales-totalExp).toLocaleString()}</div>
+        </div>
+      </div>
+      ${e.salesCash > 0 ? `<div style="font-size:11px;color:var(--text-sub);margin-bottom:4px;">現金売上：¥${e.salesCash.toLocaleString()}</div>` : ''}
+      ${extraList}
+      ${expList}
+    </div>`;
+  }).join('');
+}
+
+// ── 編集：その日のデータをフォームに読み込む ──
+function editEntry(date) {
+  const entry = db.entries.find(e => e.date === date);
+  if (!entry) return;
+
+  // フォームをリセット
+  document.getElementById('sales-cash').value = '';
+  document.getElementById('entry-memo').value = '';
+  document.getElementById('extra-sales-list').innerHTML = '';
+  document.getElementById('expense-list').innerHTML = '';
+  extraSalesIds = []; expenseIds = [];
+
+  // 日付・売上・メモをセット
+  document.getElementById('entry-date').value = entry.date;
+  document.getElementById('sales-cash').value = entry.salesCash || '';
+  document.getElementById('entry-memo').value = entry.memo || '';
+
+  // 事業区分
+  if (entry.salesCashBiz) {
+    const bizSel = document.getElementById('sales-cash-biz');
+    if (bizSel) bizSel.value = entry.salesCashBiz;
+  }
+
+  // 追加売上
+  (entry.extraSales || []).forEach(es => {
+    addExtraSales();
+    const id = extraSalesIds[extraSalesIds.length - 1];
+    const nameEl = document.getElementById('esname-' + id);
+    const amtEl = document.getElementById('esamt-' + id);
+    const bizEl = document.getElementById('esbiz-' + id);
+    if (nameEl) nameEl.value = es.name;
+    if (amtEl) amtEl.value = es.amount;
+    if (bizEl && es.biz) bizEl.value = es.biz;
+  });
+
+  // 経費
+  (entry.expenses || []).forEach(ex => {
+    addExpenseRow();
+    const id = expenseIds[expenseIds.length - 1];
+    const accEl = document.getElementById('eacc-' + id);
+    const payEl = document.getElementById('epay-' + id);
+    const amtEl = document.getElementById('eamt-' + id);
+    const descEl = document.getElementById('edesc-' + id);
+    const bizEl = document.getElementById('ebiz-' + id);
+    if (accEl) { accEl.value = ex.account; onAccountChange(id); }
+    if (payEl) payEl.value = ex.payment;
+    if (amtEl) amtEl.value = ex.amount;
+    if (descEl) descEl.value = ex.desc || '';
+    if (bizEl && ex.biz) bizEl.value = ex.biz;
+  });
+
+  updateSalesTotal();
+
+  // 画面上部にスクロール
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+  showToast(date + ' のデータを読み込みました。編集後に保存してください。');
+}
+
+// ── 削除 ──
+async function deleteEntry(date) {
+  if (!confirm(date + ' の記録を削除しますか？')) return;
+  db.entries = db.entries.filter(e => e.date !== date);
+  saveLocalCache();
+
+  // サーバーに削除を通知
+  document.getElementById('loading-overlay').classList.add('show');
+  try {
+    await pushToServer('deleteEntry', { date });
+    showToast(date + ' を削除しました');
+    populateMonthSelects();
+    renderEntryHistory();
+  } catch(e) {
+    showToast('削除に失敗しました', 'toast', 'err');
+  } finally {
+    document.getElementById('loading-overlay').classList.remove('show');
+  }
 }
