@@ -69,7 +69,12 @@ function setSyncBadge(state) {
 async function gasCall(action, payload) {
   const url = window.APP_CONFIG.GAS_URL;
   const body = JSON.stringify({ action, passcode: window.APP_CONFIG.PASSCODE, payload: payload || {} });
-  const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain' }, body });
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain' },
+    redirect: 'follow',
+    body
+  });
   const json = await res.json();
   if (!json.success) throw new Error(json.error || 'サーバーエラー');
   return json.data;
