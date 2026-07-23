@@ -775,9 +775,15 @@ function onDateChange() {
   const totalSales = entry.salesCash + (entry.extraSales || []).reduce((a,x) => a+x.amount, 0);
   const totalExp = (entry.expenses || []).reduce((a,x) => a+x.amount, 0);
   const expList = (entry.expenses || []).map(ex =>
-    `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border-light);font-size:12px;">
+    `<div style="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border-light);font-size:12px;">
       <span style="color:var(--text-sub);">${ex.account}${ex.desc ? ' / '+ex.desc : ''} <span style="font-size:10px;">(${ex.payment})</span></span>
-      <span class="red" style="font-weight:600;">¥${ex.amount.toLocaleString()}</span>
+      <div style="display:flex;align-items:center;gap:6px;">
+        <span class="red" style="font-weight:600;">¥${ex.amount.toLocaleString()}</span>
+        ${ex.receiptUrl
+          ? `<a href="${ex.receiptUrl}" target="_blank" rel="noopener" style="text-decoration:none;background:#EAF3DE;color:#3B6D11;font-size:10px;padding:2px 7px;border-radius:8px;font-weight:600;"><i class="ti ti-camera"></i> 領収書あり</a>`
+          : `<span style="background:#F1EFE8;color:#8A7B66;font-size:10px;padding:2px 7px;border-radius:8px;">領収書なし</span>`
+        }
+      </div>
     </div>`
   ).join('');
 
