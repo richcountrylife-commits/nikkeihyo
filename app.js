@@ -45,6 +45,8 @@ window.addEventListener('DOMContentLoaded', () => {
 function initApp() {
   loadLocalCache();
   document.getElementById('entry-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('entry-date').addEventListener('change', onDateChange);
+  onDateChange();
   renderBizSelects(); renderAccountList(); renderBizList(); populateMonthSelects();
   fetchFromServer();
 }
@@ -93,7 +95,7 @@ async function fetchFromServer() {
     saveLocalCache();
     setSyncBadge('ok');
     renderBizSelects(); renderAccountList(); renderBizList(); populateMonthSelects();
-    refreshActiveTab(); updateMeisaiBadge(); renderEntryHistory();
+    refreshActiveTab(); updateMeisaiBadge(); onDateChange();
   } catch(e) {
     console.error(e);
     setSyncBadge('err');
@@ -325,7 +327,7 @@ async function saveEntry() {
     document.getElementById('sales-cash').value = ''; document.getElementById('entry-memo').value = '';
     document.getElementById('extra-sales-list').innerHTML = ''; document.getElementById('expense-list').innerHTML = '';
     extraSalesIds = []; expenseIds = []; updateSalesTotal();
-    renderEntryHistory();
+    onDateChange();
   } catch(e) { console.error(e); showToast('保存中にエラーが発生しました', 'toast', 'err'); }
   finally { document.getElementById('loading-overlay').classList.remove('show'); }
 }
@@ -506,7 +508,11 @@ function renderLedger() {
   }
   entries.forEach(e => {
     if (e.salesCash > 0 && (bizFilter === 'all' || e.salesCashBiz === bizFilter))
-      html += `<div class="ledger-row"><div><div style="font-weight:600;">${e.date.substring(5)} 現金売上 <span class="biz-tag ${bizTagClass(e.salesCashBiz)}">${bizName(e.salesCashBiz)}</span></div>${e.memo ? `<div class="ledger-date">${e.memo}</div>` : ''}</div><span class="green">${fmt(e.salesCash)}</span></div>`;
+      html += `<div class="ledger-row"><div><div style="font-weight:600;">${e.date.substring(5)} 現金売上 <span class="biz-tag ${bizTagClass(e.salesCashBiz)}">${bizName(e.salesCashBiz)}</span></div>${e.memo ? `<div class="ledger-date">${e.memo}</div>` : ''}</div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <span class="green">${fmt(e.salesCash)}</span>
+          <button class="btn btn-outline" style="padding:3px 8px;font-size:10px;" onclick="editEntry('${e.date}');switchTab('nikkkei',document.querySelector('[data-tab=nikkkei]'))"><i class="ti ti-pencil"></i></button>
+        </div></div>`;
     (e.extraSales || []).forEach(es => {
       if (bizFilter !== 'all' && es.biz !== bizFilter) return;
       html += `<div class="ledger-row"><div><div style="font-weight:600;">${e.date.substring(5)} ${es.name} <span class="biz-tag ${bizTagClass(es.biz)}">${bizName(es.biz)}</span></div></div><span class="green">${fmt(es.amount)}</span></div>`;
@@ -754,77 +760,38 @@ async function saveMeisaiToServer() {
 }
 
 // ============================================
-// 過去の記録一覧・編集・削除
 // ============================================
-function renderEntryHistory() {
-  // 月フィルタの選択肢を更新
-  const months = getMonths();
-  const sel = document.getElementById('history-month-filter');
-  if (!sel) return;
-  const prev = sel.value;
-  sel.innerHTML = months.map(m => `<option value="${m}">${m.replace('-','年')}月</option>`).join('');
-  if (prev && months.includes(prev)) sel.value = prev;
+// 日付変更時：その日の既存データを表示
+// ============================================
+function onDateChange() {
+  const date = document.getElementById('entry-date').value;
+  const area = document.getElementById('existing-entry-area');
+  const detail = document.getElementById('existing-entry-detail');
+  if (!area || !detail) return;
 
-  const month = sel.value;
-  const entries = db.entries.filter(e => e.date.startsWith(month)).slice().reverse();
-  const container = document.getElementById('entry-history-list');
-  if (!container) return;
+  const entry = db.entries.find(e => e.date === date);
+  if (!entry) { area.style.display = 'none'; return; }
 
-  if (!entries.length) {
-    container.innerHTML = '<div class="empty-state" style="padding:16px;">この月の記録はありません</div>';
-    return;
-  }
+  const totalSales = entry.salesCash + (entry.extraSales || []).reduce((a,x) => a+x.amount, 0);
+  const totalExp = (entry.expenses || []).reduce((a,x) => a+x.amount, 0);
+  const expList = (entry.expenses || []).map(ex =>
+    `<div style="display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--border-light);font-size:12px;">
+      <span style="color:var(--text-sub);">${ex.account}${ex.desc ? ' / '+ex.desc : ''} <span style="font-size:10px;">(${ex.payment})</span></span>
+      <span class="red" style="font-weight:600;">¥${ex.amount.toLocaleString()}</span>
+    </div>`
+  ).join('');
 
-  container.innerHTML = entries.map(e => {
-    const totalSales = e.salesCash + (e.extraSales || []).reduce((a, x) => a + x.amount, 0);
-    const totalExp = (e.expenses || []).reduce((a, x) => a + x.amount, 0);
-    const expList = (e.expenses || []).map(ex =>
-      `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border-light);font-size:11px;">
-        <span style="color:var(--text-sub);">${ex.account}${ex.desc ? ' / '+ex.desc : ''} (${ex.payment})</span>
-        <span class="red">¥${ex.amount.toLocaleString()}</span>
-      </div>`
-    ).join('');
-    const extraList = (e.extraSales || []).map(es =>
-      `<div style="display:flex;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--border-light);font-size:11px;">
-        <span style="color:var(--text-sub);">${es.name}</span>
-        <span class="green">¥${es.amount.toLocaleString()}</span>
-      </div>`
-    ).join('');
-
-    return `<div class="card" style="margin-bottom:10px;padding:12px;" id="history-${e.date}">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
-        <div>
-          <span style="font-weight:600;font-size:14px;">${e.date}</span>
-          ${e.memo ? `<span style="font-size:11px;color:var(--text-sub);margin-left:8px;">${e.memo}</span>` : ''}
-        </div>
-        <div style="display:flex;gap:6px;">
-          <button class="btn btn-outline" style="padding:5px 10px;font-size:11px;" onclick="editEntry('${e.date}')">
-            <i class="ti ti-pencil"></i>編集
-          </button>
-          <button class="btn btn-outline" style="padding:5px 10px;font-size:11px;color:var(--red);" onclick="deleteEntry('${e.date}')">
-            <i class="ti ti-trash"></i>削除
-          </button>
-        </div>
-      </div>
-      <div style="display:flex;gap:12px;margin-bottom:6px;">
-        <div class="metric" style="flex:1;padding:8px;">
-          <div class="metric-label">売上</div>
-          <div style="font-size:15px;font-weight:600;" class="green">¥${totalSales.toLocaleString()}</div>
-        </div>
-        <div class="metric" style="flex:1;padding:8px;">
-          <div class="metric-label">経費</div>
-          <div style="font-size:15px;font-weight:600;" class="red">¥${totalExp.toLocaleString()}</div>
-        </div>
-        <div class="metric" style="flex:1;padding:8px;">
-          <div class="metric-label">粗利</div>
-          <div style="font-size:15px;font-weight:600;" class="${totalSales-totalExp >= 0 ? 'green' : 'red'}">¥${(totalSales-totalExp).toLocaleString()}</div>
-        </div>
-      </div>
-      ${e.salesCash > 0 ? `<div style="font-size:11px;color:var(--text-sub);margin-bottom:4px;">現金売上：¥${e.salesCash.toLocaleString()}</div>` : ''}
-      ${extraList}
-      ${expList}
+  detail.innerHTML = `
+    <div style="display:flex;gap:10px;margin-bottom:8px;">
+      <div class="metric" style="flex:1;padding:8px;"><div class="metric-label">売上</div><div style="font-size:15px;font-weight:600;" class="green">¥${totalSales.toLocaleString()}</div></div>
+      <div class="metric" style="flex:1;padding:8px;"><div class="metric-label">経費</div><div style="font-size:15px;font-weight:600;" class="red">¥${totalExp.toLocaleString()}</div></div>
+    </div>
+    ${expList}
+    <div style="display:flex;gap:8px;margin-top:10px;">
+      <button class="btn btn-soft" style="flex:1;font-size:12px;" onclick="editEntry('${date}')"><i class="ti ti-pencil"></i>この日を編集</button>
+      <button class="btn btn-outline" style="flex:1;font-size:12px;color:var(--red);" onclick="deleteEntry('${date}')"><i class="ti ti-trash"></i>削除</button>
     </div>`;
-  }).join('');
+  area.style.display = 'block';
 }
 
 // ── 編集：その日のデータをフォームに読み込む ──
@@ -897,7 +864,7 @@ async function deleteEntry(date) {
     await pushToServer('deleteEntry', { date });
     showToast(date + ' を削除しました');
     populateMonthSelects();
-    renderEntryHistory();
+    onDateChange();
   } catch(e) {
     showToast('削除に失敗しました', 'toast', 'err');
   } finally {
