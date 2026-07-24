@@ -100,22 +100,30 @@ function parseYucho(rows) {
     const d2 = (row[5] || '').trim();
     const combined = d1 + ' ' + d2;
 
-    // 自動科目判定
     let debit, credit, shopName;
-    if (/JCB/i.test(d2)) {
+
+    if (/JCB/i.test(d2) || /JCB/i.test(d1)) {
+      // JCBカード引落し：カード債務を消す
       debit = 'JCBカード'; credit = '普通預金（ゆうちょ）'; shopName = 'JCBカード支払';
-    } else if (/イデミツ|ｲﾃﾞﾐﾂ/.test(d2)) {
-      debit = '出光法人カード'; credit = '普通預金（ゆうちょ）'; shopName = '出光カード支払';
+    } else if (/イデミツ|ｲﾃﾞﾐﾂ|出光/i.test(combined)) {
+      // 出光カード引落し：カード債務を消す
+      debit = '出光カード（未払金）'; credit = '普通預金（ゆうちょ）'; shopName = '出光カード支払';
     } else if (/社会保険|年金/.test(combined)) {
+      // 社会保険料：会社負担＋本人負担
       debit = '法定福利費'; credit = '普通預金（ゆうちょ）'; shopName = '社会保険料納付';
-    } else if (/ｶﾈﾓﾄ|カネモト/.test(d2) || /振込/.test(d1)) {
-      debit = '普通預金（ゆうちょ）'; credit = '役員報酬'; shopName = '役員報酬振込入金';
-    } else if (/受取利子|利子/.test(d1)) {
+    } else if (/受取利子|利子|利息/.test(d1) && nyukin > 0) {
+      // 預金利息の入金
       debit = '普通預金（ゆうちょ）'; credit = '受取利息'; shopName = '利息';
-    } else if (/税金/.test(d1)) {
+    } else if (/税金|源泉/.test(d1) && harai > 0) {
+      // 利息の源泉税など
       debit = '租税公課'; credit = '普通預金（ゆうちょ）'; shopName = '税金';
-    } else if (/料　金|料金/.test(d1)) {
+    } else if (/料　金|料金|手数料/.test(d1) && harai > 0) {
       debit = '支払手数料'; credit = '普通預金（ゆうちょ）'; shopName = '手数料';
+    } else if (/カード/.test(d1) && nyukin > 0) {
+      // ATMでゆうちょへ現金入金（カードで引き出した現金を入れる）
+      debit = '普通預金（ゆうちょ）'; credit = '現金'; shopName = 'ATM入金（現金）';
+    } else if (/振込/.test(d1) && nyukin > 0) {
+      debit = '普通預金（ゆうちょ）'; credit = '売上高'; shopName = d1 + (d2 ? ' '+d2 : '');
     } else if (nyukin > 0) {
       debit = '普通預金（ゆうちょ）'; credit = '仮受金'; shopName = d1 + (d2 ? ' '+d2 : '');
     } else {
@@ -148,17 +156,24 @@ function parseAozora(rows) {
     const harai   = parseAmt(row[3]);
 
     let debit, credit, shopName, amount;
-    if (/利息/.test(desc)) {
+
+    if (/利息/.test(desc) && nyukin > 0) {
+      // 預金利息の入金
       debit = '普通預金（あおぞら）'; credit = '受取利息'; shopName = desc; amount = nyukin;
-    } else if (/ATM利用手数料/.test(desc)) {
+    } else if (/ATM利用手数料|ATM手数料/.test(desc)) {
+      // ATM手数料
       debit = '支払手数料'; credit = '普通預金（あおぞら）'; shopName = desc; amount = harai;
-    } else if (/ATM/.test(desc) && nyukin > 0) {
-      debit = '普通預金（あおぞら）'; credit = '普通預金（ゆうちょ）'; shopName = desc; amount = nyukin;
-    } else if (/振込手数料/.test(desc)) {
+    } else if (/ATM.*ゆうちょ|ゆうちょ.*ATM/.test(desc) && nyukin > 0) {
+      // ゆうちょからあおぞらへの口座間振替
+      debit = '普通預金（あおぞら）'; credit = '普通預金（ゆうちょ）'; shopName = 'ゆうちょ→あおぞら 口座間振替'; amount = nyukin;
+    } else if (/振込手数料/.test(desc) && harai > 0) {
+      // 振込手数料
       debit = '支払手数料'; credit = '普通預金（あおぞら）'; shopName = desc; amount = harai;
-    } else if (/ペイペイ|カイケイ|会計/.test(desc) && harai > 0) {
+    } else if (/ペイペイ|カイケイ|会計|税理士/.test(desc) && harai > 0) {
+      // 税理士報酬
       debit = '支払報酬'; credit = '普通預金（あおぞら）'; shopName = desc; amount = harai;
-    } else if (/PE|税務署|地方税/.test(desc) && harai > 0) {
+    } else if (/PE.*税務署|税務署|地方税共同機構/.test(desc) && harai > 0) {
+      // 税金支払い
       debit = '租税公課'; credit = '普通預金（あおぞら）'; shopName = desc; amount = harai;
     } else if (nyukin > 0) {
       debit = '普通預金（あおぞら）'; credit = '雑収入'; shopName = desc; amount = nyukin;
@@ -187,7 +202,7 @@ async function readCSVFile(file) {
     reader.readAsText(file, encoding);
   });
 
-  // まずバイナリで読んでShift_JISかどうか判定
+  // バイナリで読んで文字コードを判定
   const buf = await new Promise((resolve, reject) => {
     const r = new FileReader();
     r.onload = e => resolve(new Uint8Array(e.target.result));
@@ -195,13 +210,13 @@ async function readCSVFile(file) {
     r.readAsArrayBuffer(file);
   });
 
-  // BOMチェック（UTF-8 BOMは EF BB BF）
-  const hasUtf8Bom = buf[0] === 0xEF && buf[1] === 0xBB && buf[2] === 0xBF;
-  if (hasUtf8Bom) return await tryDecode('UTF-8');
+  // UTF-8 BOM（EF BB BF）チェック
+  if (buf[0] === 0xEF && buf[1] === 0xBB && buf[2] === 0xBF) {
+    return await tryDecode('UTF-8');
+  }
 
-  // Shift_JISっぽいバイトが含まれているか確認
-  // （0x81〜0x9F または 0xE0〜0xFC が先行バイトとして存在）
- for (let i = 0; i < Math.min(buf.length, 2000); i++) {
+  // Shift_JIS判定：0x81〜0x9F または 0xE0〜0xFC のバイトがあればShift_JIS
+  for (let i = 0; i < Math.min(buf.length, 2000); i++) {
     const b = buf[i];
     if ((b >= 0x81 && b <= 0x9F) || (b >= 0xE0 && b <= 0xFC)) {
       return await tryDecode('Shift_JIS');
