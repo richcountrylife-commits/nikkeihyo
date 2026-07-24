@@ -90,38 +90,51 @@ function parseJCB(rows) {
 // ── ゆうちょ パーサー ──
 function parseYucho(rows) {
   const items = [];
+  // ヘッダー行を探して列インデックスを特定
+  let dateCol=0, nyukinCol=2, haraiCol=3, d1Col=4, d2Col=5;
   for (const row of rows) {
-    const dateStr = (row[0] || '').trim();
+    if (row.join('').includes('取引日') && row.join('').includes('受入金額')) {
+      dateCol   = row.findIndex(c => c.includes('取引日'));
+      nyukinCol = row.findIndex(c => c.includes('受入金額'));
+      haraiCol  = row.findIndex(c => c.includes('払出金額'));
+      d1Col     = row.findIndex(c => c.includes('詳細１'));
+      d2Col     = row.findIndex(c => c.includes('詳細２'));
+      break;
+    }
+  }
+
+  for (const row of rows) {
+    const dateStr = (row[dateCol] || '').trim();
     if (!/^\d{8}$/.test(dateStr)) continue;
     const date = fmtDate(dateStr);
-    const nyukin  = parseAmt(row[2]);
-    const harai   = parseAmt(row[3]);
-    const d1 = (row[4] || '').trim();
-    const d2 = (row[5] || '').trim();
+    const nyukin = parseAmt(row[nyukinCol]);
+    const harai  = parseAmt(row[haraiCol]);
+    const d1 = (row[d1Col] || '').trim();
+    const d2 = (row[d2Col] || '').trim();
     const combined = d1 + ' ' + d2;
 
     let debit, credit, shopName;
 
     if (/JCB/i.test(d2) || /JCB/i.test(d1)) {
-      // JCBカード引落し：カード債務を消す
+      // JCBカード引落し（自払 / JCB ｶｰﾄﾞ）
       debit = 'JCBカード'; credit = '普通預金（ゆうちょ）'; shopName = 'JCBカード支払';
     } else if (/イデミツ|ｲﾃﾞﾐﾂ|出光/i.test(combined)) {
-      // 出光カード引落し：カード債務を消す
+      // 出光カード引落し
       debit = '出光カード（未払金）'; credit = '普通預金（ゆうちょ）'; shopName = '出光カード支払';
     } else if (/社会保険|年金/.test(combined)) {
-      // 社会保険料：会社負担＋本人負担
+      // 社会保険料納付
       debit = '法定福利費'; credit = '普通預金（ゆうちょ）'; shopName = '社会保険料納付';
     } else if (/受取利子|利子|利息/.test(d1) && nyukin > 0) {
       // 預金利息の入金
       debit = '普通預金（ゆうちょ）'; credit = '受取利息'; shopName = '利息';
     } else if (/税金|源泉/.test(d1) && harai > 0) {
-      // 利息の源泉税など
+      // 利息の源泉税
       debit = '租税公課'; credit = '普通預金（ゆうちょ）'; shopName = '税金';
     } else if (/料　金|料金|手数料/.test(d1) && harai > 0) {
       debit = '支払手数料'; credit = '普通預金（ゆうちょ）'; shopName = '手数料';
     } else if (/カード/.test(d1) && nyukin > 0) {
-      // ATMでゆうちょへ現金入金（カードで引き出した現金を入れる）
-      debit = '普通預金（ゆうちょ）'; credit = '現金'; shopName = 'ATM入金（現金）';
+      // ATMで野菜売上などの現金をゆうちょへ入金
+      debit = '普通預金（ゆうちょ）'; credit = '売上高'; shopName = 'ATM入金（現金→ゆうちょ）';
     } else if (/振込/.test(d1) && nyukin > 0) {
       debit = '普通預金（ゆうちょ）'; credit = '売上高'; shopName = d1 + (d2 ? ' '+d2 : '');
     } else if (nyukin > 0) {
@@ -151,9 +164,10 @@ function parseAozora(rows) {
     const row = rows[i];
     if (!row[0]) continue;
     const date = fmtDate(row[0]);
+    if (!date.match(/^\d{4}-\d{2}-\d{2}$/)) continue;
     const desc = normalize(row[1] || '');
-    const nyukin  = parseAmt(row[2]);
-    const harai   = parseAmt(row[3]);
+    const nyukin = parseAmt(row[2]);
+    const harai  = parseAmt(row[3]);
 
     let debit, credit, shopName, amount;
 
@@ -163,8 +177,8 @@ function parseAozora(rows) {
     } else if (/ATM利用手数料|ATM手数料/.test(desc)) {
       // ATM手数料
       debit = '支払手数料'; credit = '普通預金（あおぞら）'; shopName = desc; amount = harai;
-    } else if (/ATM.*ゆうちょ|ゆうちょ.*ATM/.test(desc) && nyukin > 0) {
-      // ゆうちょからあおぞらへの口座間振替
+    } else if (/^ATM/.test(desc) && nyukin > 0) {
+      // ゆうちょからあおぞらへのATM振替入金
       debit = '普通預金（あおぞら）'; credit = '普通預金（ゆうちょ）'; shopName = 'ゆうちょ→あおぞら 口座間振替'; amount = nyukin;
     } else if (/振込手数料/.test(desc) && harai > 0) {
       // 振込手数料
@@ -172,7 +186,7 @@ function parseAozora(rows) {
     } else if (/ペイペイ|カイケイ|会計|税理士/.test(desc) && harai > 0) {
       // 税理士報酬
       debit = '支払報酬'; credit = '普通預金（あおぞら）'; shopName = desc; amount = harai;
-    } else if (/PE.*税務署|税務署|地方税共同機構/.test(desc) && harai > 0) {
+    } else if (/税務署|地方税共同機構|PE/.test(desc) && harai > 0) {
       // 税金支払い
       debit = '租税公課'; credit = '普通預金（あおぞら）'; shopName = desc; amount = harai;
     } else if (nyukin > 0) {
