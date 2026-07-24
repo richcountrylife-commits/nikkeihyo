@@ -717,15 +717,16 @@ function renderMeisaiList() {
   const tbody = document.getElementById('meisai-tbody');
   tbody.innerHTML = items.map(item => {
     const srcClass = item.source === 'JCB' ? 'source-jcb' : item.source === 'ゆうちょ' ? 'source-yucho' : 'source-aozora';
-    const MEISAI_DEBITS = [...(db.accounts || []), '普通預金（ゆうちょ）', '普通預金（あおぞら）', 'JCBカード', '出光カード（未払金）', '支払手数料', '支払報酬', '租税公課', '受取利息', '売上高', '現金', 'その他経費'];
-    const accountOpts = [...new Set(MEISAI_DEBITS)].map(a => `<option value="${a}" ${item.debit === a ? 'selected' : ''}>${a}</option>`).join('');
-    const creditOpts = ['JCBカード','出光法人カード','普通預金（ゆうちょ）','普通預金（あおぞら）','現金','役員報酬','受取利息','雑収入','仮受金','その他'].map(a => `<option value="${a}" ${item.credit === a ? 'selected' : ''}>${a}</option>`).join('');
+    const MEISAI_DEBITS = [...new Set([...(db.accounts || []), '普通預金（ゆうちょ）', '普通預金（あおぞら）', 'JCBカード', '出光カード（未払金）', '支払手数料', '支払報酬', '租税公課', '受取利息', '売上高', '現金', 'その他経費'])];
+    const MEISAI_CREDITS = ['普通預金（ゆうちょ）','普通預金（あおぞら）','売上高','現金','JCBカード','出光カード（未払金）','受取利息','雑収入','役員借入金','仮受金','その他'];
+    const accountOpts = MEISAI_DEBITS.map(a => `<option value="${a}"${item.debit === a ? ' selected' : ''}>${a}</option>`).join('');
+    const creditOpts = MEISAI_CREDITS.map(a => `<option value="${a}"${item.credit === a ? ' selected' : ''}>${a}</option>`).join('');
     return `<tr class="${item.checked ? 'checked-row' : ''}" id="mrow-${item.id}">
       <td style="text-align:center;"><input type="checkbox" ${item.checked ? 'checked' : ''} onchange="toggleMeisaiCheck('${item.id}', this.checked)" /></td>
       <td style="white-space:nowrap;font-size:11px;">${item.date}<br><span style="color:var(--text-sub);">${item.useDate ? '利用:'+item.useDate : ''}</span></td>
       <td><span class="source-badge ${srcClass}">${item.source}</span></td>
-      <td><select onchange="updateMeisaiField('${item.id}','debit',this.value)">${accountOpts}</select></td>
-      <td><select onchange="updateMeisaiField('${item.id}','credit',this.value)">${creditOpts}</select></td>
+      <td><select id="debit-${item.id}" onchange="updateMeisaiField('${item.id}','debit',this.value)">${accountOpts}</select></td>
+      <td><select id="credit-${item.id}" onchange="updateMeisaiField('${item.id}','credit',this.value)">${creditOpts}</select></td>
       <td style="text-align:right;font-weight:600;white-space:nowrap;">¥${item.amount.toLocaleString()}</td>
       <td style="font-size:11px;color:var(--text-sub);">${item.shopName || ''}</td>
       <td><input type="text" value="${item.memo || ''}" placeholder="品目・内容を入力" onchange="updateMeisaiField('${item.id}','memo',this.value)" /></td>
@@ -734,6 +735,15 @@ function renderMeisaiList() {
   const total = items.reduce((s,m) => s+m.amount, 0);
   const unchecked = items.filter(m => !m.checked).length;
   document.getElementById('meisai-list-footer').innerHTML = `表示: ${items.length}件 / 合計: ¥${total.toLocaleString()} ／ <span class="unchecked-badge">未確認 ${unchecked}件</span>`;
+
+  // セレクトボックスの値をJSで強制セット（HTMLのselected属性が効かない場合の対策）
+  items.forEach(item => {
+    const debitSel = document.getElementById('debit-' + item.id);
+    const creditSel = document.getElementById('credit-' + item.id);
+    if (debitSel) debitSel.value = item.debit;
+    if (creditSel) creditSel.value = item.credit;
+  });
+
   updateMeisaiBadge();
 }
 
