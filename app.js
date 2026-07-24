@@ -717,7 +717,8 @@ function renderMeisaiList() {
   const tbody = document.getElementById('meisai-tbody');
   tbody.innerHTML = items.map(item => {
     const srcClass = item.source === 'JCB' ? 'source-jcb' : item.source === 'ゆうちょ' ? 'source-yucho' : 'source-aozora';
-    const accountOpts = [...(db.accounts || []), 'その他経費'].map(a => `<option value="${a}" ${item.debit === a ? 'selected' : ''}>${a}</option>`).join('');
+    const MEISAI_DEBITS = [...(db.accounts || []), '普通預金（ゆうちょ）', '普通預金（あおぞら）', 'JCBカード', '出光カード（未払金）', '支払手数料', '支払報酬', '租税公課', '受取利息', '売上高', '現金', 'その他経費'];
+    const accountOpts = [...new Set(MEISAI_DEBITS)].map(a => `<option value="${a}" ${item.debit === a ? 'selected' : ''}>${a}</option>`).join('');
     const creditOpts = ['JCBカード','出光法人カード','普通預金（ゆうちょ）','普通預金（あおぞら）','現金','役員報酬','受取利息','雑収入','仮受金','その他'].map(a => `<option value="${a}" ${item.credit === a ? 'selected' : ''}>${a}</option>`).join('');
     return `<tr class="${item.checked ? 'checked-row' : ''}" id="mrow-${item.id}">
       <td style="text-align:center;"><input type="checkbox" ${item.checked ? 'checked' : ''} onchange="toggleMeisaiCheck('${item.id}', this.checked)" /></td>
