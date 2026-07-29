@@ -1191,3 +1191,49 @@ function exportPeriodCSV(type) {
   URL.revokeObjectURL(url);
   showToast(filename + ' をダウンロード', 'toast2');
 }
+// ============================================
+// 期間指定の月報
+// ============================================
+function setGeppoMode(mode) {
+  document.getElementById('geppo-month-mode').style.display = mode === 'month' ? 'block' : 'none';
+  document.getElementById('geppo-period-mode').style.display = mode === 'period' ? 'block' : 'none';
+  document.getElementById('g-period-table-wrap').style.display = mode === 'period' ? 'block' : 'none';
+  document.getElementById('geppo-mode-month').className = mode === 'month' ? 'btn btn-primary' : 'btn btn-outline';
+  document.getElementById('geppo-mode-period').className = mode === 'period' ? 'btn btn-primary' : 'btn btn-outline';
+  if (mode === 'period') { populatePeriodSelects(); renderPeriodGeppo(); }
+  else renderGeppo();
+}
+
+function populatePeriodSelects() {
+  const months = getMonths().slice().reverse();
+  const fromSel = document.getElementById('geppo-from');
+  const toSel = document.getElementById('geppo-to');
+  if (!fromSel || !toSel) return;
+  const opts = months.map(m => '<option value="' + m + '">' + m.replace('-','年') + '月</option>').join('');
+  fromSel.innerHTML = opts; toSel.innerHTML = opts;
+  fromSel.value = months[0]; toSel.value = months[months.length - 1];
+}
+
+function setFiscalYear() {
+  const now = new Date();
+  const year = now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
+  const from = year + '-07';
+  const to = (year + 1) + '-06';
+  const fromSel = document.getElementById('geppo-from');
+  const toSel = document.getElementById('geppo-to');
+  if (fromSel) fromSel.value = from;
+  if (toSel) toSel.value = to;
+  renderPeriodGeppo();
+}
+
+function calcGeppoForMonths(months, bizFilter) {
+  let ts = 0, te = 0, kyuyoTotal = 0, days = 0;
+  const salesBreak = {}, payBreak = {}, bizBreak = {};
+  const NOT_EXPENSE_DEBITS = ['JCBカード','出光カード（未払金）','普通預金（ゆうちょ）','普通預金（あおぞら）','受取利息','仮受金','役員借入金','現金'];
+  months.forEach(month => {
+    const entries = db.entries.filter(e => e.date.startsWith(month));
+    const kyuyo = db.kyuyo.find(k => k.month === month);
+    days += entries.length;
+    entries.forEach(e => {
+      if (e.salesCash > 0 && (bizFilter === 'all' || e.salesCashBiz === bizFilter)) {
+        ts += e.salesCash; salesBreak['現金売上'] =
