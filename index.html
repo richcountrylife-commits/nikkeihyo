@@ -497,10 +497,33 @@ table.dt .amt{text-align:right;font-variant-numeric:tabular-nums;}
 
       <!-- 月報 -->
       <div id="tab-geppo" class="section">
-        <div class="month-sel-row">
-          <select id="geppo-month" onchange="renderGeppo()"></select>
-          <select id="geppo-biz" onchange="renderGeppo()"></select>
+        <!-- 表示モード切替 -->
+        <div style="display:flex;gap:8px;margin-bottom:14px;">
+          <button class="btn btn-primary" id="geppo-mode-month" onclick="setGeppoMode('month')" style="flex:1;font-size:12px;"><i class="ti ti-calendar"></i> 月別</button>
+          <button class="btn btn-outline" id="geppo-mode-period" onclick="setGeppoMode('period')" style="flex:1;font-size:12px;"><i class="ti ti-calendar-range"></i> 期間指定</button>
         </div>
+
+        <!-- 月別モード -->
+        <div id="geppo-month-mode">
+          <div class="month-sel-row">
+            <select id="geppo-month" onchange="renderGeppo()"></select>
+            <select id="geppo-biz" onchange="renderGeppo()"></select>
+          </div>
+        </div>
+
+        <!-- 期間指定モード -->
+        <div id="geppo-period-mode" style="display:none;">
+          <div class="card" style="margin-bottom:14px;">
+            <div class="card-title"><i class="ti ti-calendar-range"></i>期間指定</div>
+            <div class="row2" style="margin-bottom:10px;">
+              <div><label class="form-label">開始月</label><select id="geppo-from" onchange="renderPeriodGeppo()"></select></div>
+              <div><label class="form-label">終了月</label><select id="geppo-to" onchange="renderPeriodGeppo()"></select></div>
+            </div>
+            <button class="btn btn-soft" style="width:100%;font-size:12px;" onclick="setFiscalYear()"><i class="ti ti-leaf"></i> 今期（7月〜翌6月）を選択</button>
+          </div>
+        </div>
+
+        <!-- 集計結果 -->
         <div class="row3" style="margin-bottom:10px;">
           <div class="metric"><div class="metric-label">売上合計</div><div class="metric-value green" id="g-sales">¥0</div></div>
           <div class="metric"><div class="metric-label">経費合計</div><div class="metric-value red" id="g-expense">¥0</div></div>
@@ -511,11 +534,32 @@ table.dt .amt{text-align:right;font-variant-numeric:tabular-nums;}
           <div class="metric"><div class="metric-label">営業日数</div><div class="metric-value" id="g-days">0日</div></div>
         </div>
         <div class="row2-pc">
-        <div class="card"><div class="card-title"><i class="ti ti-chart-pie"></i>事業別売上内訳</div><div id="g-biz-breakdown"></div></div>
-        <div class="card"><div class="card-title"><i class="ti ti-chart-pie"></i>売上項目内訳</div><div id="g-sales-breakdown"></div></div>
+          <div class="card"><div class="card-title"><i class="ti ti-chart-pie"></i>事業別売上内訳</div><div id="g-biz-breakdown"></div></div>
+          <div class="card"><div class="card-title"><i class="ti ti-chart-pie"></i>売上項目内訳</div><div id="g-sales-breakdown"></div></div>
         </div>
         <div class="card"><div class="card-title"><i class="ti ti-credit-card"></i>支払手段別経費</div><div id="g-payment-breakdown"></div></div>
-        <div class="card"><div class="card-title"><i class="ti ti-calendar-stats"></i>日別サマリー</div><div id="g-daily-list"><div class="empty-state">データなし</div></div></div>
+
+        <!-- 期間指定時：月別サマリー表 -->
+        <div id="g-period-table-wrap" style="display:none;">
+          <div class="card">
+            <div class="card-title"><i class="ti ti-calendar-stats"></i>月別サマリー</div>
+            <div style="overflow-x:auto;">
+              <table class="dt">
+                <thead><tr><th>月</th><th class="amt">売上</th><th class="amt">経費</th><th class="amt">粗利</th><th class="amt">役員報酬</th></tr></thead>
+                <tbody id="g-period-tbody"></tbody>
+              </table>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:12px;">
+              <button class="btn btn-outline" style="flex:1;font-size:12px;" onclick="exportPeriodCSV('summary')"><i class="ti ti-download"></i>月別サマリーCSV</button>
+              <button class="btn btn-outline" style="flex:1;font-size:12px;" onclick="exportPeriodCSV('jizuke')"><i class="ti ti-download"></i>期間仕訳CSV</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 月別時：日別サマリー -->
+        <div id="g-daily-wrap">
+          <div class="card"><div class="card-title"><i class="ti ti-calendar-stats"></i>日別サマリー</div><div id="g-daily-list"><div class="empty-state">データなし</div></div></div>
+        </div>
       </div>
 
       <!-- 仕訳帳 -->

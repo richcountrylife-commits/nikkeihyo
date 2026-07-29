@@ -980,3 +980,214 @@ async function saveMeisaiToServer() {
   try { const ok = await pushToServer('saveMeisai', db.meisai); if (ok) showMeisaiToast('明細データを保存しました ✓'); }
   finally { document.getElementById('loading-overlay').classList.remove('show'); }
 }
+
+// ============================================
+// 期間指定の月報
+// ============================================
+let geppoMode = 'month';
+
+function setGeppoMode(mode) {
+  geppoMode = mode;
+  document.getElementById('geppo-month-mode').style.display = mode === 'month' ? 'block' : 'none';
+  document.getElementById('geppo-period-mode').style.display = mode === 'period' ? 'block' : 'none';
+  document.getElementById('g-daily-wrap').style.display = mode === 'month' ? 'block' : 'none';
+  document.getElementById('g-period-table-wrap').style.display = mode === 'period' ? 'block' : 'none';
+  document.getElementById('geppo-mode-month').className = mode === 'month' ? 'btn btn-primary' : 'btn btn-outline';
+  document.getElementById('geppo-mode-period').className = mode === 'period' ? 'btn btn-primary' : 'btn btn-outline';
+
+  if (mode === 'period') {
+    populatePeriodSelects();
+    renderPeriodGeppo();
+  } else {
+    renderGeppo();
+  }
+}
+
+function populatePeriodSelects() {
+  const months = getMonths().reverse(); // 昇順
+  const fromSel = document.getElementById('geppo-from');
+  const toSel = document.getElementById('geppo-to');
+  if (!fromSel || !toSel) return;
+  const opts = months.map(m => '<option value="' + m + '">' + m.replace('-','年') + '月</option>').join('');
+  fromSel.innerHTML = opts;
+  toSel.innerHTML = opts;
+  // デフォルトは最初〜最後
+  fromSel.value = months[0];
+  toSel.value = months[months.length - 1];
+}
+
+function setFiscalYear() {
+  // 今期：7月〜翌6月
+  const now = new Date();
+  const year = now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
+  const from = year + '-07';
+  const to = (year + 1) + '-06';
+  const fromSel = document.getElementById('geppo-from');
+  const toSel = document.getElementById('geppo-to');
+  if (fromSel) fromSel.value = from;
+  if (toSel) toSel.value = to;
+  renderPeriodGeppo();
+}
+
+function calcGeppoForMonths(months, bizFilter) {
+  let ts = 0, te = 0, kyuyoTotal = 0, days = 0;
+  const salesBreak = {}, payBreak = {}, bizBreak = {};
+  const NOT_EXPENSE_DEBITS = ['JCBカード','出光カード（未払金）','普通預金（ゆうちょ）','普通預金（あおぞら）','受取利息','仮受金','役員借入金','現金'];
+
+  months.forEach(month => {
+    const entries = db.entries.filter(e => e.date.startsWith(month));
+    const kyuyo = db.kyuyo.find(k => k.month === month);
+    days += entries.length;
+
+    entries.forEach(e => {
+      if (e.salesCash > 0 && (bizFilter === 'all' || e.salesCashBiz === bizFilter)) {
+        ts += e.salesCash;
+        salesBreak['現金売上'] = (salesBreak['現金売上'] || 0) + e.salesCash;
+        bizBreak[e.salesCashBiz] = (bizBreak[e.salesCashBiz] || 0) + e.salesCash;
+      }
+      (e.extraSales || []).forEach(es => {
+        if (bizFilter !== 'all' && es.biz !== bizFilter) return;
+        ts += es.amount; salesBreak[es.name] = (salesBreak[es.name] || 0) + es.amount;
+        bizBreak[es.biz] = (bizBreak[es.biz] || 0) + es.amount;
+      });
+      (e.expenses || []).forEach(ex => {
+        if (bizFilter !== 'all' && ex.biz !== bizFilter) return;
+        te += ex.amount; payBreak[ex.payment] = (payBreak[ex.payment] || 0) + ex.amount;
+      });
+    });
+
+    if (kyuyo && bizFilter === 'all') { te += kyuyo.salary + kyuyo.kaisha; kyuyoTotal += kyuyo.salary; }
+
+    if (bizFilter === 'all') {
+      (db.meisai || []).filter(m => m.date.startsWith(month) && m.checked).forEach(m => {
+        if (m.credit === '売上高') {
+          ts += m.amount;
+          salesBreak[m.shopName || '振込売上'] = (salesBreak[m.shopName || '振込売上'] || 0) + m.amount;
+          bizBreak['veg'] = (bizBreak['veg'] || 0) + m.amount;
+        } else if (!NOT_EXPENSE_DEBITS.includes(m.debit) && m.credit !== '受取利息') {
+          te += m.amount;
+          const payKey = m.source === 'JCB' ? 'JCBカード' : m.source === 'ゆうちょ' ? '普通預金（ゆうちょ）' : '普通預金（あおぞら）';
+          payBreak[payKey] = (payBreak[payKey] || 0) + m.amount;
+        }
+      });
+    }
+  });
+
+  return { ts, te, kyuyoTotal, days, salesBreak, payBreak, bizBreak };
+}
+
+function renderPeriodGeppo() {
+  const fromEl = document.getElementById('geppo-from');
+  const toEl = document.getElementById('geppo-to');
+  if (!fromEl || !toEl) return;
+  const from = fromEl.value;
+  const to = toEl.value;
+  if (!from || !to || from > to) return;
+
+  // 期間内の月一覧
+  const allMonths = getMonths().filter(m => m >= from && m <= to).sort();
+  const bizFilter = 'all';
+
+  // 全体集計
+  const total = calcGeppoForMonths(allMonths, bizFilter);
+
+  // 表示更新
+  const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = val; };
+  setEl('g-sales', fmt(total.ts));
+  setEl('g-expense', fmt(total.te));
+  setEl('g-profit', fmt(total.ts - total.te));
+  setEl('g-kyuyo', fmt(total.kyuyoTotal));
+  setEl('g-days', total.days + '日');
+
+  const bb = document.getElementById('g-biz-breakdown');
+  const bbe = Object.entries(total.bizBreak).filter(([,v]) => v > 0);
+  if (bb) bb.innerHTML = bbe.length ? bbe.map(([k,v]) => '<div class="ledger-row"><span class="biz-tag ' + bizTagClass(k) + '">' + bizName(k) + '</span><span class="green" style="font-weight:600;">' + fmt(v) + '</span></div>').join('') : '<div class="empty-state">売上なし</div>';
+
+  const sb = document.getElementById('g-sales-breakdown');
+  const sbe = Object.entries(total.salesBreak).filter(([,v]) => v > 0);
+  if (sb) sb.innerHTML = sbe.length ? sbe.map(([k,v]) => '<div class="ledger-row"><span>' + k + '</span><span class="green" style="font-weight:600;">' + fmt(v) + '</span></div>').join('') : '<div class="empty-state">売上なし</div>';
+
+  const pb = document.getElementById('g-payment-breakdown');
+  const pbe = Object.entries(total.payBreak).filter(([,v]) => v > 0);
+  if (pb) pb.innerHTML = pbe.length ? pbe.map(([k,v]) => '<div class="ledger-row"><span>' + k + '</span><span class="red" style="font-weight:600;">' + fmt(v) + '</span></div>').join('') : '<div class="empty-state">経費なし</div>';
+
+  // 月別サマリー表
+  const tbody = document.getElementById('g-period-tbody');
+  if (tbody) {
+    tbody.innerHTML = allMonths.map(month => {
+      const m = calcGeppoForMonths([month], bizFilter);
+      const kyuyo = db.kyuyo.find(k => k.month === month);
+      const pr = m.ts - m.te;
+      return '<tr>' +
+        '<td style="font-weight:600;">' + month.replace('-','年') + '月</td>' +
+        '<td class="amt green">' + fmt(m.ts) + '</td>' +
+        '<td class="amt red">' + fmt(m.te) + '</td>' +
+        '<td class="amt ' + (pr >= 0 ? 'green' : 'red') + '">' + fmt(pr) + '</td>' +
+        '<td class="amt blue">' + (kyuyo ? fmt(kyuyo.salary) : '-') + '</td>' +
+        '</tr>';
+    }).join('') +
+    '<tr style="font-weight:700;border-top:2px solid var(--border-light);">' +
+    '<td>合計</td>' +
+    '<td class="amt green">' + fmt(total.ts) + '</td>' +
+    '<td class="amt red">' + fmt(total.te) + '</td>' +
+    '<td class="amt ' + (total.ts - total.te >= 0 ? 'green' : 'red') + '">' + fmt(total.ts - total.te) + '</td>' +
+    '<td class="amt blue">' + fmt(total.kyuyoTotal) + '</td>' +
+    '</tr>';
+  }
+}
+
+// ============================================
+// 期間指定のCSV出力
+// ============================================
+function exportPeriodCSV(type) {
+  const fromEl = document.getElementById('geppo-from');
+  const toEl = document.getElementById('geppo-to');
+  if (!fromEl || !toEl) return;
+  const from = fromEl.value;
+  const to = toEl.value;
+  const allMonths = getMonths().filter(m => m >= from && m <= to).sort();
+  const NOT_EXPENSE_DEBITS = ['JCBカード','出光カード（未払金）','普通預金（ゆうちょ）','普通預金（あおぞら）','受取利息','仮受金','役員借入金','現金'];
+
+  let csv = '', filename = '';
+  const period = from + '〜' + to;
+
+  if (type === 'summary') {
+    csv = '月,売上合計,経費合計,粗利益,役員報酬\n';
+    let totalTs = 0, totalTe = 0, totalKyuyo = 0;
+    allMonths.forEach(month => {
+      const m = calcGeppoForMonths([month], 'all');
+      const kyuyo = db.kyuyo.find(k => k.month === month);
+      totalTs += m.ts; totalTe += m.te; totalKyuyo += m.kyuyoTotal;
+      csv += month + ',' + m.ts + ',' + m.te + ',' + (m.ts - m.te) + ',' + m.kyuyoTotal + '\n';
+    });
+    csv += '合計,' + totalTs + ',' + totalTe + ',' + (totalTs - totalTe) + ',' + totalKyuyo + '\n';
+    filename = '月別サマリー_' + period + '.csv';
+  } else {
+    // 期間仕訳CSV
+    csv = '日付,口座・区分,借方科目,貸方科目,金額,利用先,摘要\n';
+    allMonths.forEach(month => {
+      const kyuyo = db.kyuyo.find(k => k.month === month);
+      if (kyuyo) {
+        csv += month + '-01,給与,役員報酬,預り金,' + kyuyo.honnin + ',社保本人負担分,\n';
+        csv += month + '-01,給与,役員報酬,普通預金（ゆうちょ）,' + kyuyo.tedori + ',役員報酬手取振込,\n';
+        csv += month + '-01,給与,法定福利費,普通預金（ゆうちょ）,' + kyuyo.kaisha + ',社保会社負担分,\n';
+        csv += month + '-01,給与,預り金,普通預金（ゆうちょ）,' + kyuyo.honnin + ',社保本人分納付,\n';
+      }
+      db.entries.filter(e => e.date.startsWith(month)).forEach(e => {
+        if (e.salesCash > 0) csv += e.date + ',売上,現金,売上,' + e.salesCash + ',現金売上,\n';
+        (e.extraSales || []).forEach(es => { csv += e.date + ',売上,売掛金,売上,' + es.amount + ',"' + es.name + '",\n'; });
+        (e.expenses || []).forEach(ex => { csv += e.date + ',経費,' + ex.account + ',' + ex.payment + ',' + ex.amount + ',"' + (ex.desc || '') + '",\n'; });
+      });
+      (db.meisai || []).filter(m => m.date.startsWith(month) && m.checked).forEach(m => {
+        csv += m.date + ',' + m.source + ',' + m.debit + ',' + m.credit + ',' + m.amount + ',"' + (m.shopName || '') + '","' + (m.memo || '') + '"\n';
+      });
+    });
+    filename = '期間仕訳_' + period + '.csv';
+  }
+
+  const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
+  URL.revokeObjectURL(url);
+  showToast(filename + ' をダウンロード', 'toast2');
+}
