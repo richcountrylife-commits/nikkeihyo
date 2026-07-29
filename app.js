@@ -598,19 +598,22 @@ function renderGeppo() {
 
   // 銀行・カード明細（確認済）を月報に集計
   if (bizFilter === 'all') {
-    const BANK_ACCOUNTS = ['普通預金（ゆうちょ）','普通預金（あおぞら）','JCBカード','出光カード（未払金）','売上高','受取利息','雑収入','仮受金','役員借入金','現金','役員報酬','法定福利費'];
+    // 資金移動・口座間移動として扱う借方科目（経費に含めない）
+    const NOT_EXPENSE_DEBITS = ['普通預金（ゆうちょ）','普通預金（あおぞら）','JCBカード','出光カード（未払金）','売上高','受取利息','雑収入','仮受金','役員借入金','現金'];
     (db.meisai || []).filter(m => m.date.startsWith(month) && m.checked).forEach(m => {
       if (m.credit === '売上高') {
+        // 振込入金などの売上
         ts += m.amount;
-        salesBreak['ATM入金（売上）'] = (salesBreak['ATM入金（売上）'] || 0) + m.amount;
+        salesBreak[m.shopName || '振込売上'] = (salesBreak[m.shopName || '振込売上'] || 0) + m.amount;
         bizBreak['veg'] = (bizBreak['veg'] || 0) + m.amount;
       } else if (m.credit === '受取利息' || m.credit === '雑収入') {
-        ts += m.amount;
-        salesBreak[m.credit] = (salesBreak[m.credit] || 0) + m.amount;
-      } else if (!BANK_ACCOUNTS.includes(m.debit)) {
+        // 利息・雑収入は売上外収入として表示のみ（経費にも売上にも含めない）
+      } else if (!NOT_EXPENSE_DEBITS.includes(m.debit)) {
+        // 消耗品費・法定福利費・支払報酬・租税公課などの経費
         te += m.amount;
         payBreak[m.source] = (payBreak[m.source] || 0) + m.amount;
       }
+      // JCBカード返済・ATM入金・口座間振替は何もしない（資金移動）
     });
   }
 
