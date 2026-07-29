@@ -85,6 +85,7 @@ function doPost(e) {
       case 'saveBizList':     data = saveSetting('bizList', req.payload); break;
       case 'uploadReceipt':   data = uploadReceipt(req.payload); break;
       case 'saveMeisai':      data = saveMeisai(req.payload); break;
+      case 'deleteEntry':     data = deleteEntry(req.payload); break;
       case 'clearAll':        data = clearAll(); break;
       default:
         return jsonResponse({ success: false, error: '不明なactionです: ' + req.action });
@@ -164,14 +165,28 @@ function saveKyuyo(record) {
 function upsertRow(sheet, key, dataObj) {
   const data = sheet.getDataRange().getValues();
   const now = new Date().toISOString();
-  for (let i = 1; i < data.length; i++) {
-    if (data[i][0] === key) {
-      sheet.getRange(i + 1, 2).setValue(JSON.stringify(dataObj));
-      sheet.getRange(i + 1, 3).setValue(now);
-      return;
+  const keyStr = String(key).trim();
+  
+  // 重複行をすべて削除してから追加（下から削除して行番号ずれを防ぐ）
+  let found = false;
+  for (let i = data.length - 1; i >= 1; i--) {
+    const cellVal = String(data[i][0]).trim();
+    if (cellVal === keyStr) {
+      if (!found) {
+        // 最初に見つかった行（下から数えて最初）を上書き
+        sheet.getRange(i + 1, 2).setValue(JSON.stringify(dataObj));
+        sheet.getRange(i + 1, 3).setValue(now);
+        found = true;
+      } else {
+        // 重複行は削除
+        sheet.deleteRow(i + 1);
+      }
     }
   }
-  sheet.appendRow([key, JSON.stringify(dataObj), now]);
+  
+  if (!found) {
+    sheet.appendRow([keyStr, JSON.stringify(dataObj), now]);
+  }
 }
 
 // ============================================
@@ -215,6 +230,22 @@ function sanitizeFilename(date, originalName) {
   const ext = (originalName && originalName.includes('.')) ? originalName.split('.').pop() : 'jpg';
   const ts = new Date().getTime();
   return `${date}_${ts}.${ext}`;
+}
+
+// ============================================
+// 日計エントリーの削除
+// ============================================
+function deleteEntry(payload) {
+  const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+  const sheet = ss.getSheetByName(SHEET_ENTRIES);
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] === payload.date) {
+      sheet.deleteRow(i + 1);
+      return { deleted: payload.date };
+    }
+  }
+  return { deleted: null };
 }
 
 // ============================================
