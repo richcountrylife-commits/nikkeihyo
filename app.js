@@ -467,6 +467,24 @@ function renderGeppo() {
     (e.expenses || []).forEach(ex => { if (bizFilter !== 'all' && ex.biz !== bizFilter) return; te += ex.amount; payBreak[ex.payment] = (payBreak[ex.payment] || 0) + ex.amount; });
   });
   if (kyuyo && bizFilter === 'all') te += kyuyo.salary + kyuyo.kaisha;
+
+  // 銀行・カード明細（確認済）を月報に集計
+  if (bizFilter === 'all') {
+    (db.meisai || []).filter(m => m.date.startsWith(month) && m.checked).forEach(m => {
+      if (m.credit === '売上高') {
+        ts += m.amount;
+        salesBreak['ATM入金（売上）'] = (salesBreak['ATM入金（売上）'] || 0) + m.amount;
+        bizBreak['veg'] = (bizBreak['veg'] || 0) + m.amount;
+      } else if (m.credit === '受取利息' || m.credit === '雑収入') {
+        ts += m.amount;
+        salesBreak[m.credit] = (salesBreak[m.credit] || 0) + m.amount;
+      } else if (!['普通預金（ゆうちょ）','普通預金（あおぞら）','JCBカード','出光カード（未払金）','売上高','受取利息','雑収入','仮受金','役員借入金','現金'].includes(m.debit)) {
+        te += m.amount;
+        payBreak[m.source] = (payBreak[m.source] || 0) + m.amount;
+      }
+    });
+  }
+
   document.getElementById('g-sales').textContent = fmt(ts);
   document.getElementById('g-expense').textContent = fmt(te);
   document.getElementById('g-profit').textContent = fmt(ts - te);
