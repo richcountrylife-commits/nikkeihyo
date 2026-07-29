@@ -14,8 +14,8 @@
  */
 
 // ▼▼▼ ここを書き換えてください ▼▼▼
-const SPREADSHEET_ID = 'ここにスプレッドシートIDを貼り付け';
-const PASSCODE = '1234'; // config.js のPASSCODEと必ず同じ値にする
+const SPREADSHEET_ID = '1jxo3X2sZHsr_HyKJdLdUm5i7V5OP3iBmO8JpurgcqJA';
+const PASSCODE = '0708';
 const RECEIPT_FOLDER_NAME = 'たいよう_レシート'; // Googleドライブの保存先フォルダ名
 // ▲▲▲ ここまで ▲▲▲
 
