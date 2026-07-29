@@ -156,6 +156,7 @@ function getMonths() {
   const s = new Set();
   db.entries.forEach(e => s.add(e.date.substring(0, 7)));
   db.kyuyo.forEach(k => s.add(k.month));
+  (db.meisai || []).forEach(m => s.add(m.date.substring(0, 7)));
   const now = new Date();
   s.add(now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0'));
   return [...s].sort().reverse();
