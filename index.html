@@ -505,41 +505,11 @@ table.dt .amt{text-align:right;font-variant-numeric:tabular-nums;}
 
         <!-- 月別モード -->
         <div id="geppo-month-mode">
-         <div style="display:flex;gap:8px;margin-bottom:14px;">
-  <button class="btn btn-primary" id="geppo-mode-month" onclick="setGeppoMode('month')" style="flex:1;font-size:12px;">月別</button>
-  <button class="btn btn-outline" id="geppo-mode-period" onclick="setGeppoMode('period')" style="flex:1;font-size:12px;">期間指定</button>
-</div>
-<div id="geppo-month-mode">
-  <div class="month-sel-row">
-    <select id="geppo-month" onchange="renderGeppo()"></select>
-    <select id="geppo-biz" onchange="renderGeppo()"></select>
-  </div>
-</div>
-<div id="geppo-period-mode" style="display:none;">
-  <div class="card" style="margin-bottom:14px;">
-    <div class="card-title"><i class="ti ti-calendar-range"></i>期間指定</div>
-    <div class="row2" style="margin-bottom:10px;">
-      <div><label class="form-label">開始月</label><select id="geppo-from" onchange="renderPeriodGeppo()"></select></div>
-      <div><label class="form-label">終了月</label><select id="geppo-to" onchange="renderPeriodGeppo()"></select></div>
-    </div>
-    <button class="btn btn-soft" style="width:100%;font-size:12px;" onclick="setFiscalYear()"><i class="ti ti-leaf"></i> 今期（7月〜翌6月）を選択</button>
-  </div>
-</div>
-<div id="g-period-table-wrap" style="display:none;">
-  <div class="card">
-    <div class="card-title"><i class="ti ti-calendar-stats"></i>月別サマリー</div>
-    <div style="overflow-x:auto;">
-      <table class="dt">
-        <thead><tr><th>月</th><th class="amt">売上</th><th class="amt">経費</th><th class="amt">粗利</th><th class="amt">役員報酬</th></tr></thead>
-        <tbody id="g-period-tbody"></tbody>
-      </table>
-    </div>
-    <div style="display:flex;gap:8px;margin-top:12px;">
-      <button class="btn btn-outline" style="flex:1;font-size:12px;" onclick="exportPeriodCSV('summary')"><i class="ti ti-download"></i>月別サマリーCSV</button>
-      <button class="btn btn-outline" style="flex:1;font-size:12px;" onclick="exportPeriodCSV('jizuke')"><i class="ti ti-download"></i>期間仕訳CSV</button>
-    </div>
-  </div>
-</div>
+          <div class="month-sel-row">
+            <select id="geppo-month" onchange="renderGeppo()"></select>
+            <select id="geppo-biz" onchange="renderGeppo()"></select>
+          </div>
+        </div>
 
         <!-- 期間指定モード -->
         <div id="geppo-period-mode" style="display:none;">
