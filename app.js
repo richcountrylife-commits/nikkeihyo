@@ -598,22 +598,35 @@ function renderGeppo() {
 
   // 銀行・カード明細（確認済）を月報に集計
   if (bizFilter === 'all') {
-    // 資金移動・口座間移動として扱う借方科目（経費に含めない）
-    const NOT_EXPENSE_DEBITS = ['普通預金（ゆうちょ）','普通預金（あおぞら）','JCBカード','出光カード（未払金）','売上高','受取利息','雑収入','仮受金','役員借入金','現金'];
     (db.meisai || []).filter(m => m.date.startsWith(month) && m.checked).forEach(m => {
+
+      // ── 売上系 ──
       if (m.credit === '売上高') {
-        // 振込入金などの売上
         ts += m.amount;
         salesBreak[m.shopName || '振込売上'] = (salesBreak[m.shopName || '振込売上'] || 0) + m.amount;
         bizBreak['veg'] = (bizBreak['veg'] || 0) + m.amount;
-      } else if (m.credit === '受取利息' || m.credit === '雑収入') {
-        // 利息・雑収入は売上外収入として表示のみ（経費にも売上にも含めない）
-      } else if (!NOT_EXPENSE_DEBITS.includes(m.debit)) {
-        // 消耗品費・法定福利費・支払報酬・租税公課などの経費
-        te += m.amount;
-        payBreak[m.source] = (payBreak[m.source] || 0) + m.amount;
+        return;
       }
-      // JCBカード返済・ATM入金・口座間振替は何もしない（資金移動）
+
+      // ── 資金移動・除外 ──
+      // JCBカード引落し（JCBの各明細で既に計上済みなので重複除外）
+      if (m.debit === 'JCBカード') return;
+      // 出光カード引落し（出光の各明細で計上済みの場合は除外）
+      if (m.debit === '出光カード（未払金）') return;
+      // ATM入金・口座間振替（資金移動）
+      if (m.debit === '普通預金（ゆうちょ）' || m.debit === '普通預金（あおぞら）') return;
+      // 利息・雑収入（売上外収入）
+      if (m.debit === '受取利息' || m.credit === '受取利息') return;
+      // 仮受金・役員借入金（資金移動）
+      if (m.debit === '仮受金' || m.debit === '役員借入金' || m.debit === '現金') return;
+
+      // ── 経費として計上 ──
+      // 法定福利費（社会保険）・支払報酬（税理士）・租税公課・消耗品費など
+      te += m.amount;
+      const payKey = m.source === 'JCB' ? 'JCBカード'
+        : m.source === 'ゆうちょ' ? '普通預金（ゆうちょ）'
+        : '普通預金（あおぞら）';
+      payBreak[payKey] = (payBreak[payKey] || 0) + m.amount;
     });
   }
 
