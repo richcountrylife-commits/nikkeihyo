@@ -122,8 +122,27 @@ function parseYucho(rows) {
       // 出光カード引落し
       debit = '出光カード（未払金）'; credit = '普通預金（ゆうちょ）'; shopName = '出光カード支払';
     } else if (/社会保険|年金/.test(combined)) {
-      // 社会保険料納付
-      debit = '法定福利費'; credit = '普通預金（ゆうちょ）'; shopName = '社会保険料納付';
+      // 社会保険料納付を会社負担分と本人負担分に分割
+      const kaisha = Math.round(harai / 2);
+      const honnin = harai - kaisha;
+      const baseId = 'yucho_' + date + '_' + items.length;
+      items.push({
+        date, useDate: '', source: 'ゆうちょ',
+        debit: '法定福利費', credit: '普通預金（ゆうちょ）',
+        amount: kaisha,
+        shopName: '社会保険料納付（会社負担分）',
+        memo: '', checked: false,
+        id: baseId + '_a'
+      });
+      items.push({
+        date, useDate: '', source: 'ゆうちょ',
+        debit: '預り金', credit: '普通預金（ゆうちょ）',
+        amount: honnin,
+        shopName: '社会保険料納付（本人負担分）',
+        memo: '', checked: false,
+        id: baseId + '_b'
+      });
+      continue;
     } else if (/受取利子|利子|利息/.test(d1) && nyukin > 0) {
       // 預金利息の入金
       debit = '普通預金（ゆうちょ）'; credit = '受取利息'; shopName = '利息';

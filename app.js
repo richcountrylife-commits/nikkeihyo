@@ -594,7 +594,7 @@ function renderGeppo() {
     });
   });
 
-  if (kyuyo && bizFilter === 'all') te += kyuyo.salary + kyuyo.kaisha;
+  if (kyuyo && bizFilter === 'all') te += kyuyo.salary; // 社保は銀行明細で計上
 
   // 銀行・カード明細（確認済）を月報に集計
   if (bizFilter === 'all') {
@@ -680,7 +680,7 @@ function renderLedger() {
   if (kyuyo && bizFilter === 'all') {
     html += '<div style="font-size:11px;font-weight:600;color:var(--text-sub);padding:6px 0 4px;">給与・社会保険</div>';
     html += '<div class="ledger-row"><div><div style="font-weight:600;">' + month.replace('-','/') + ' <span class="biz-tag biz-other">役員報酬</span></div><div class="ledger-date">借方：役員報酬　貸方：預り金＋普通預金</div></div><span class="blue">' + fmt(kyuyo.salary) + '</span></div>';
-    html += '<div class="ledger-row"><div><div style="font-weight:600;">' + month.replace('-','/') + ' <span class="biz-tag biz-other">社会保険納付</span></div><div class="ledger-date">借方：法定福利費＋預り金　貸方：普通預金</div></div><span class="red">' + fmt(kyuyo.shakai) + '</span></div>';
+    // 社会保険は銀行明細で管理するため仕訳帳には表示しない
     html += '<div style="font-size:11px;font-weight:600;color:var(--text-sub);padding:10px 0 4px;">日々の記録</div>';
   }
 
@@ -780,12 +780,12 @@ function exportCSV(type) {
       (e.extraSales || []).forEach(es => { if (bizFilter === 'all' || es.biz === bizFilter) { ts += es.amount; sb[es.name] = (sb[es.name] || 0) + es.amount; } });
       (e.expenses || []).forEach(ex => { if (bizFilter === 'all' || ex.biz === bizFilter) te += ex.amount; });
     });
-    if (kyuyo && bizFilter === 'all') te += kyuyo.salary + kyuyo.kaisha;
+    if (kyuyo && bizFilter === 'all') te += kyuyo.salary; // 社保は銀行明細で計上
     if (bizFilter === 'all') meisaiItems.forEach(m => { if (m.credit === '売上高') ts += m.amount; });
     csv = '項目,金額\n売上合計,' + ts + '\n';
     Object.entries(sb).forEach(([k,v]) => { csv += k + ',' + v + '\n'; });
     csv += '経費合計,' + te + '\n';
-    if (kyuyo && bizFilter === 'all') csv += '役員報酬,' + kyuyo.salary + '\n法定福利費,' + kyuyo.kaisha + '\n';
+    if (kyuyo && bizFilter === 'all') csv += '役員報酬,' + kyuyo.salary + '\n'; // 社保は銀行明細で集計
     csv += '粗利益,' + (ts-te) + '\n営業日数,' + entries.length + '\n';
     filename = '月報' + bizSuffix + '_' + month + '.csv';
   } else if (type === 'jizuke') {
@@ -1056,7 +1056,7 @@ function calcGeppoForMonths(months, bizFilter) {
       });
     });
 
-    if (kyuyo && bizFilter === 'all') { te += kyuyo.salary + kyuyo.kaisha; kyuyoTotal += kyuyo.salary; }
+    if (kyuyo && bizFilter === 'all') { te += kyuyo.salary; kyuyoTotal += kyuyo.salary; } // 社保は銀行明細で計上
 
     if (bizFilter === 'all') {
       (db.meisai || []).filter(m => m.date.startsWith(month) && m.checked).forEach(m => {
@@ -1168,10 +1168,8 @@ function exportPeriodCSV(type) {
     allMonths.forEach(month => {
       const kyuyo = db.kyuyo.find(k => k.month === month);
       if (kyuyo) {
-        csv += month + '-01,給与,役員報酬,預り金,' + kyuyo.honnin + ',社保本人負担分,\n';
-        csv += month + '-01,給与,役員報酬,普通預金（ゆうちょ）,' + kyuyo.tedori + ',役員報酬手取振込,\n';
-        csv += month + '-01,給与,法定福利費,普通預金（ゆうちょ）,' + kyuyo.kaisha + ',社保会社負担分,\n';
-        csv += month + '-01,給与,預り金,普通預金（ゆうちょ）,' + kyuyo.honnin + ',社保本人分納付,\n';
+        // 役員報酬のみ（社会保険料は銀行明細で処理）
+        csv += month + '-01,給与,役員報酬,普通預金（ゆうちょ）,' + kyuyo.salary + ',役員報酬,\n';
       }
       db.entries.filter(e => e.date.startsWith(month)).forEach(e => {
         if (e.salesCash > 0) csv += e.date + ',売上,現金,売上,' + e.salesCash + ',現金売上,\n';
