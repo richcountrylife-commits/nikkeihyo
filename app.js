@@ -440,18 +440,26 @@ async function deleteEntry(date) {
 
 function getKyuyoInputs() {
   const g = id => parseFloat(document.getElementById(id) && document.getElementById(id).value) || 0;
-  const salary      = g('k-salary') || db.kyuyoSettings.salary || 45000;
-  const gensen      = g('k-gensen');
-  const kenkoHonnin = g('k-kenko-honnin') || db.kyuyoSettings.kenkoHonnin || 3352;
-  const nenkinHonnin= g('k-nenkin-honnin') || db.kyuyoSettings.nenkinHonnin || 8052;
-  const kenkoKaisha = g('k-kenko-kaisha') || db.kyuyoSettings.kenkoKaisha || 3352;
-  const nenkinKaisha= g('k-nenkin-kaisha') || db.kyuyoSettings.nenkinKaisha || 8052;
-  const kosodate    = g('k-kosodate') || db.kyuyoSettings.kosodate || 316;
-  const honninTotal = kenkoHonnin + nenkinHonnin + gensen;
-  const kaishaTotal = kenkoKaisha + nenkinKaisha + kosodate;
-  const shakhaiTotal = honninTotal - gensen + kaishaTotal; // 実際の口座引落し額
-  const tedori = salary - honninTotal;
-  return { salary, gensen, kenkoHonnin, nenkinHonnin, kenkoKaisha, nenkinKaisha, kosodate, honninTotal, kaishaTotal, shakhaiTotal, tedori };
+  const salary     = g('k-salary') || db.kyuyoSettings.salary || 45000;
+  const gensen     = g('k-gensen');
+  const kenkoTotal = g('k-kenko-total') || db.kyuyoSettings.kenkoTotal || 6704;
+  const nenkinTotal= g('k-nenkin-total') || db.kyuyoSettings.nenkinTotal || 16104;
+  const kosodate   = g('k-kosodate') || db.kyuyoSettings.kosodate || 316;
+
+  // 折半計算（端数は本人負担を切り捨て、会社負担に加算）
+  const kenkoHonnin  = Math.floor(kenkoTotal / 2);
+  const kenkoKaisha  = kenkoTotal - kenkoHonnin;
+  const nenkinHonnin = Math.floor(nenkinTotal / 2);
+  const nenkinKaisha = nenkinTotal - nenkinHonnin;
+
+  const honninTotal  = kenkoHonnin + nenkinHonnin + gensen;
+  const kaishaTotal  = kenkoKaisha + nenkinKaisha + kosodate;
+  const shakhaiTotal = kenkoTotal + nenkinTotal + kosodate; // 口座引落し合計
+  const tedori       = salary - honninTotal;
+
+  return { salary, gensen, kenkoTotal, nenkinTotal, kosodate,
+           kenkoHonnin, kenkoKaisha, nenkinHonnin, nenkinKaisha,
+           honninTotal, kaishaTotal, shakhaiTotal, tedori };
 }
 
 function updateKyuyoPreview() {
@@ -475,8 +483,7 @@ async function saveKyuyoDefaults() {
   const k = getKyuyoInputs();
   db.kyuyoSettings = {
     salary: k.salary, gensen: k.gensen,
-    kenkoHonnin: k.kenkoHonnin, nenkinHonnin: k.nenkinHonnin,
-    kenkoKaisha: k.kenkoKaisha, nenkinKaisha: k.nenkinKaisha,
+    kenkoTotal: k.kenkoTotal, nenkinTotal: k.nenkinTotal,
     kosodate: k.kosodate
   };
   saveLocalCache();
@@ -487,13 +494,11 @@ async function saveKyuyoDefaults() {
 function initKyuyo() {
   const s = db.kyuyoSettings || {};
   const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
-  setVal('k-salary',         s.salary       || 45000);
-  setVal('k-gensen',         s.gensen       || 0);
-  setVal('k-kenko-honnin',   s.kenkoHonnin  || 3352);
-  setVal('k-nenkin-honnin',  s.nenkinHonnin || 8052);
-  setVal('k-kenko-kaisha',   s.kenkoKaisha  || 3352);
-  setVal('k-nenkin-kaisha',  s.nenkinKaisha || 8052);
-  setVal('k-kosodate',       s.kosodate     || 316);
+  setVal('k-salary',      s.salary     || 45000);
+  setVal('k-gensen',      s.gensen     || 0);
+  setVal('k-kenko-total', s.kenkoTotal || 6704);
+  setVal('k-nenkin-total',s.nenkinTotal|| 16104);
+  setVal('k-kosodate',    s.kosodate   || 316);
   updateKyuyoPreview();
   onKyuyoMonthChange();
 }
@@ -508,13 +513,11 @@ function onKyuyoMonthChange() {
   // 既存データがあれば入力欄に読み込む
   if (existing) {
     const setVal = (id, val) => { const el = document.getElementById(id); if (el && val !== undefined) el.value = val; };
-    setVal('k-salary',        existing.salary);
-    setVal('k-gensen',        existing.gensen || 0);
-    setVal('k-kenko-honnin',  existing.kenkoHonnin);
-    setVal('k-nenkin-honnin', existing.nenkinHonnin);
-    setVal('k-kenko-kaisha',  existing.kenkoKaisha);
-    setVal('k-nenkin-kaisha', existing.nenkinKaisha);
-    setVal('k-kosodate',      existing.kosodate);
+    setVal('k-salary',       existing.salary);
+    setVal('k-gensen',       existing.gensen || 0);
+    setVal('k-kenko-total',  existing.kenkoTotal || (existing.kenkoHonnin * 2) || 6704);
+    setVal('k-nenkin-total', existing.nenkinTotal || (existing.nenkinHonnin * 2) || 16104);
+    setVal('k-kosodate',     existing.kosodate || 316);
     updateKyuyoPreview();
   }
   renderKyuyoList();
@@ -554,11 +557,13 @@ async function recordKyuyo() {
     month,
     salary:        k.salary,
     gensen:        k.gensen,
-    kenkoHonnin:   k.kenkoHonnin,
-    nenkinHonnin:  k.nenkinHonnin,
-    kenkoKaisha:   k.kenkoKaisha,
-    nenkinKaisha:  k.nenkinKaisha,
+    kenkoTotal:    k.kenkoTotal,
+    nenkinTotal:   k.nenkinTotal,
     kosodate:      k.kosodate,
+    kenkoHonnin:   k.kenkoHonnin,
+    kenkoKaisha:   k.kenkoKaisha,
+    nenkinHonnin:  k.nenkinHonnin,
+    nenkinKaisha:  k.nenkinKaisha,
     tedori:        k.tedori,
     // 後方互換用
     shakai:        k.shakhaiTotal,
