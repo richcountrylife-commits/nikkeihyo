@@ -1011,7 +1011,8 @@ function renderMeisaiList() {
       const srcClass = item.source === 'JCB' ? 'source-jcb' : item.source === 'ゆうちょ' ? 'source-yucho' : 'source-aozora';
       const accountOpts = MEISAI_DEBITS.map(a => '<option value="' + a + '"' + (item.debit === a ? ' selected' : '') + '>' + a + '</option>').join('');
       const creditOpts = MEISAI_CREDITS.map(a => '<option value="' + a + '"' + (item.credit === a ? ' selected' : '') + '>' + a + '</option>').join('');
-      return '<tr class="' + (item.checked ? 'checked-row' : '') + '" id="mrow-' + item.id + '">' +
+
+      let mainRow = '<tr class="' + (item.checked ? 'checked-row' : '') + '" id="mrow-' + item.id + '">' +
         '<td style="text-align:center;"><input type="checkbox" ' + (item.checked ? 'checked' : '') + ' onchange="toggleMeisaiCheck(\'' + item.id + '\', this.checked)" /></td>' +
         '<td style="white-space:nowrap;font-size:11px;">' + item.date + '<br><span style="color:var(--text-sub);">' + (item.useDate ? '利用:'+item.useDate : '') + '</span></td>' +
         '<td><span class="source-badge ' + srcClass + '">' + item.source + '</span></td>' +
@@ -1019,8 +1020,39 @@ function renderMeisaiList() {
         '<td><select id="credit-' + item.id + '" onchange="updateMeisaiField(\'' + item.id + '\',\'credit\',this.value)">' + creditOpts + '</select></td>' +
         '<td style="text-align:right;font-weight:600;white-space:nowrap;">¥' + item.amount.toLocaleString() + '</td>' +
         '<td style="font-size:11px;color:var(--text-sub);">' + (item.shopName || '') + '</td>' +
-        '<td><input type="text" value="' + (item.memo || '') + '" placeholder="品目・内容を入力" onchange="updateMeisaiField(\'' + item.id + '\',\'memo\',this.value)" /></td>' +
+        '<td>' +
+          (item.isShakai
+            ? '<button class="btn btn-soft" style="font-size:10px;padding:4px 8px;" onclick="toggleShakhaiDetail(\'' + item.id + '\')"><i class="ti ti-list-details"></i> 内訳</button>'
+            : '<input type="text" value="' + (item.memo || '') + '" placeholder="品目・内容を入力" onchange="updateMeisaiField(\'' + item.id + '\',\'memo\',this.value)" />'
+          ) +
+        '</td>' +
         '</tr>';
+
+      // 社保内訳行
+      if (item.isShakai) {
+        const d = item.shakhaiDetail || getDefaultShakhaiDetail(item.amount);
+        const total = (d.kenkoKaisha||0)+(d.nenkinKaisha||0)+(d.kosodate||0)+(d.kenkoHonnin||0)+(d.nenkinHonnin||0);
+        const diff = item.amount - total;
+        const diffColor = diff === 0 ? 'green' : 'red';
+        mainRow += '<tr id="shakai-detail-' + item.id + '" style="display:none;background:var(--bg);">' +
+          '<td colspan="8" style="padding:10px 16px;">' +
+          '<div style="font-size:12px;font-weight:600;color:var(--text-sub);margin-bottom:8px;">社会保険料内訳（手動入力可）</div>' +
+          '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;">' +
+          shakaiDetailInput(item.id, '法定福利費（健保）', 'kenkoKaisha', d.kenkoKaisha) +
+          shakaiDetailInput(item.id, '法定福利費（年金）', 'nenkinKaisha', d.nenkinKaisha) +
+          shakaiDetailInput(item.id, '法定福利費（子育て）', 'kosodate', d.kosodate) +
+          shakaiDetailInput(item.id, '預り金（健保本人）', 'kenkoHonnin', d.kenkoHonnin) +
+          shakaiDetailInput(item.id, '預り金（年金本人）', 'nenkinHonnin', d.nenkinHonnin) +
+          '</div>' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding-top:8px;border-top:1px solid var(--border-light);">' +
+          '<span style="font-size:12px;font-weight:600;">合計</span>' +
+          '<span id="shakai-total-' + item.id + '" style="font-size:13px;font-weight:700;">¥' + total.toLocaleString() + '</span>' +
+          '<span style="font-size:11px;color:var(--' + diffColor + ');">差額: ' + (diff >= 0 ? '+' : '') + diff.toLocaleString() + '円</span>' +
+          '<button class="btn btn-soft" style="font-size:11px;padding:5px 10px;" onclick="applyShakhaiDetail(\'' + item.id + '\')"><i class="ti ti-check"></i>適用</button>' +
+          '</div>' +
+          '</td></tr>';
+      }
+      return mainRow;
     }).join('');
 
     // セレクトボックスの値をJSで強制セット
@@ -1276,4 +1308,69 @@ function exportPeriodCSV(type) {
   const a = document.createElement('a'); a.href = url; a.download = filename; a.click();
   URL.revokeObjectURL(url);
   showToast(filename + ' をダウンロード', 'toast2');
+}
+
+// ============================================
+// 社会保険料内訳機能
+// ============================================
+function shakaiDetailInput(itemId, label, field, value) {
+  return '<div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">' +
+    '<label style="font-size:11px;color:var(--text-sub);flex:1;">' + label + '</label>' +
+    '<input type="number" id="sd-' + itemId + '-' + field + '" value="' + (value||0) + '" ' +
+    'style="width:90px;font-size:12px;padding:4px 6px;text-align:right;" ' +
+    'oninput="updateShakhaiTotal(\'' + itemId + '\')" />' +
+    '<span style="font-size:11px;">円</span>' +
+    '</div>';
+}
+
+function getDefaultShakhaiDetail(totalAmount) {
+  // 給与設定から初期値を計算
+  const s = db.kyuyoSettings || {};
+  const kenkoTotal  = s.kenkoTotal  || 6704;
+  const nenkinTotal = s.nenkinTotal || 16104;
+  const kosodate    = s.kosodate    || 316;
+  const kenkoHonnin  = Math.floor(kenkoTotal / 2);
+  const kenkoKaisha  = kenkoTotal - kenkoHonnin;
+  const nenkinHonnin = Math.floor(nenkinTotal / 2);
+  const nenkinKaisha = nenkinTotal - nenkinHonnin;
+  return { kenkoKaisha, nenkinKaisha, kosodate, kenkoHonnin, nenkinHonnin };
+}
+
+function toggleShakhaiDetail(itemId) {
+  const row = document.getElementById('shakai-detail-' + itemId);
+  if (!row) return;
+  row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+}
+
+function updateShakhaiTotal(itemId) {
+  const fields = ['kenkoKaisha','nenkinKaisha','kosodate','kenkoHonnin','nenkinHonnin'];
+  const total = fields.reduce((s, f) => {
+    const el = document.getElementById('sd-' + itemId + '-' + f);
+    return s + (parseFloat(el && el.value) || 0);
+  }, 0);
+  const totalEl = document.getElementById('shakai-total-' + itemId);
+  const item = db.meisai.find(m => m.id === itemId);
+  if (totalEl && item) {
+    const diff = item.amount - total;
+    totalEl.textContent = '¥' + total.toLocaleString();
+    totalEl.style.color = diff === 0 ? 'var(--green)' : 'var(--red)';
+  }
+}
+
+function applyShakhaiDetail(itemId) {
+  const item = db.meisai.find(m => m.id === itemId);
+  if (!item) return;
+  const fields = ['kenkoKaisha','nenkinKaisha','kosodate','kenkoHonnin','nenkinHonnin'];
+  const detail = {};
+  fields.forEach(f => {
+    const el = document.getElementById('sd-' + itemId + '-' + f);
+    detail[f] = parseFloat(el && el.value) || 0;
+  });
+  const total = Object.values(detail).reduce((s, v) => s + v, 0);
+  if (total !== item.amount) {
+    if (!confirm('合計額が一致しません（差額:' + (item.amount - total) + '円）。このまま保存しますか？')) return;
+  }
+  item.shakhaiDetail = detail;
+  saveLocalCache();
+  showMeisaiToast('内訳を保存しました ✓');
 }
