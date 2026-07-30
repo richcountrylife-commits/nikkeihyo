@@ -435,65 +435,148 @@ async function deleteEntry(date) {
 }
 
 // ============================================
-// 給与・社会保険
+// 給与・社会保険（正式版）
 // ============================================
-function calcKyuyo(salary, shakai) {
-  const honnin = half(shakai); const kaisha = shakai - honnin; const tedori = salary - honnin;
-  return { salary, shakai, honnin, kaisha, tedori, total: tedori + shakai };
+
+function getKyuyoInputs() {
+  const g = id => parseFloat(document.getElementById(id) && document.getElementById(id).value) || 0;
+  const salary      = g('k-salary') || db.kyuyoSettings.salary || 45000;
+  const gensen      = g('k-gensen');
+  const kenkoHonnin = g('k-kenko-honnin') || db.kyuyoSettings.kenkoHonnin || 3352;
+  const nenkinHonnin= g('k-nenkin-honnin') || db.kyuyoSettings.nenkinHonnin || 8052;
+  const kenkoKaisha = g('k-kenko-kaisha') || db.kyuyoSettings.kenkoKaisha || 3352;
+  const nenkinKaisha= g('k-nenkin-kaisha') || db.kyuyoSettings.nenkinKaisha || 8052;
+  const kosodate    = g('k-kosodate') || db.kyuyoSettings.kosodate || 316;
+  const honninTotal = kenkoHonnin + nenkinHonnin + gensen;
+  const kaishaTotal = kenkoKaisha + nenkinKaisha + kosodate;
+  const shakhaiTotal = honninTotal - gensen + kaishaTotal; // 実際の口座引落し額
+  const tedori = salary - honninTotal;
+  return { salary, gensen, kenkoHonnin, nenkinHonnin, kenkoKaisha, nenkinKaisha, kosodate, honninTotal, kaishaTotal, shakhaiTotal, tedori };
 }
+
 function updateKyuyoPreview() {
-  const salary = parseFloat(document.getElementById('k-salary').value) || db.kyuyoSettings.salary || 45000;
-  const shakai = parseFloat(document.getElementById('k-shakai').value) || db.kyuyoSettings.shakai || 23124;
-  const k = calcKyuyo(salary, shakai);
-  ['prev-salary','prev-honnin','prev-gensen','prev-tedori','prev-kaisha','prev-total',
-   'j1-salary','j1-honnin','j1-tedori','j2-kaisha','j2-honnin','j2-total'].forEach(id => {
-    const el = document.getElementById(id);
-    if (!el) return;
-    if (id === 'prev-gensen') el.textContent = '¥0';
-    else if (id === 'prev-salary' || id === 'j1-salary') el.textContent = fmt(k.salary);
-    else if (id === 'prev-honnin' || id === 'j1-honnin' || id === 'j2-honnin') el.textContent = fmt(k.honnin);
-    else if (id === 'prev-tedori' || id === 'j1-tedori') el.textContent = fmt(k.tedori);
-    else if (id === 'prev-kaisha' || id === 'j2-kaisha') el.textContent = fmt(k.kaisha);
-    else if (id === 'prev-total') el.textContent = fmt(k.total);
-    else if (id === 'j2-total') el.textContent = fmt(k.shakai);
-  });
+  const k = getKyuyoInputs();
+  const setEl = (id, val) => { const el = document.getElementById(id); if (el) el.textContent = fmt(val); };
+  setEl('prev-salary', k.salary);
+  setEl('prev-kenko-honnin', k.kenkoHonnin);
+  setEl('prev-nenkin-honnin', k.nenkinHonnin);
+  setEl('prev-gensen-disp', k.gensen);
+  setEl('prev-tedori', k.tedori);
+  setEl('prev-kenko-kaisha', k.kenkoKaisha);
+  setEl('prev-nenkin-kaisha', k.nenkinKaisha);
+  setEl('prev-kosodate', k.kosodate);
+  setEl('prev-kenko-honnin2', k.kenkoHonnin);
+  setEl('prev-nenkin-honnin2', k.nenkinHonnin);
+  setEl('prev-shakai-total', k.shakhaiTotal);
+  setEl('prev-total', k.salary + k.kaishaTotal);
 }
-async function saveKyuyoSettings() {
-  const salary = parseFloat(document.getElementById('k-salary').value) || 45000;
-  const shakai = parseFloat(document.getElementById('k-shakai').value) || 23124;
-  db.kyuyoSettings = { salary, shakai }; saveLocalCache();
+
+async function saveKyuyoDefaults() {
+  const k = getKyuyoInputs();
+  db.kyuyoSettings = {
+    salary: k.salary, gensen: k.gensen,
+    kenkoHonnin: k.kenkoHonnin, nenkinHonnin: k.nenkinHonnin,
+    kenkoKaisha: k.kenkoKaisha, nenkinKaisha: k.nenkinKaisha,
+    kosodate: k.kosodate
+  };
+  saveLocalCache();
   await pushToServer('saveKyuyoSettings', db.kyuyoSettings);
-  showToast('設定を保存しました', 'kyuyo-toast'); updateKyuyoPreview();
+  showToast('既定値を保存しました', 'kyuyo-toast');
 }
+
 function initKyuyo() {
-  document.getElementById('k-salary').value = db.kyuyoSettings.salary || 45000;
-  document.getElementById('k-shakai').value = db.kyuyoSettings.shakai || 23124;
-  updateKyuyoPreview(); checkKyuyoAlready();
-  const sel = document.getElementById('kyuyo-month');
-  if (sel) sel.onchange = checkKyuyoAlready;
+  const s = db.kyuyoSettings || {};
+  const setVal = (id, val) => { const el = document.getElementById(id); if (el) el.value = val || ''; };
+  setVal('k-salary',         s.salary       || 45000);
+  setVal('k-gensen',         s.gensen       || 0);
+  setVal('k-kenko-honnin',   s.kenkoHonnin  || 3352);
+  setVal('k-nenkin-honnin',  s.nenkinHonnin || 8052);
+  setVal('k-kenko-kaisha',   s.kenkoKaisha  || 3352);
+  setVal('k-nenkin-kaisha',  s.nenkinKaisha || 8052);
+  setVal('k-kosodate',       s.kosodate     || 316);
+  updateKyuyoPreview();
+  onKyuyoMonthChange();
 }
-function checkKyuyoAlready() {
+
+function onKyuyoMonthChange() {
   const sel = document.getElementById('kyuyo-month');
   const month = sel && sel.value;
-  const already = db.kyuyo.some(k => k.month === month);
-  const el = document.getElementById('kyuyo-already');
-  if (el) el.style.display = already ? 'block' : 'none';
+  if (!month) return;
+  const existing = db.kyuyo.find(r => r.month === month);
+  const badge = document.getElementById('kyuyo-already');
+  if (badge) badge.style.display = existing ? 'inline' : 'none';
+  // 既存データがあれば入力欄に読み込む
+  if (existing) {
+    const setVal = (id, val) => { const el = document.getElementById(id); if (el && val !== undefined) el.value = val; };
+    setVal('k-salary',        existing.salary);
+    setVal('k-gensen',        existing.gensen || 0);
+    setVal('k-kenko-honnin',  existing.kenkoHonnin);
+    setVal('k-nenkin-honnin', existing.nenkinHonnin);
+    setVal('k-kenko-kaisha',  existing.kenkoKaisha);
+    setVal('k-nenkin-kaisha', existing.nenkinKaisha);
+    setVal('k-kosodate',      existing.kosodate);
+    updateKyuyoPreview();
+  }
+  renderKyuyoList();
 }
+
+function renderKyuyoList() {
+  const list = document.getElementById('kyuyo-list');
+  if (!list) return;
+  if (!db.kyuyo.length) { list.innerHTML = '<div class="empty-state">まだ記録がありません</div>'; return; }
+  list.innerHTML = db.kyuyo.slice().sort((a,b) => b.month.localeCompare(a.month)).map(r => {
+    const shakai = (r.kenkoHonnin||0)+(r.nenkinHonnin||0)+(r.kenkoKaisha||0)+(r.nenkinKaisha||0)+(r.kosodate||0);
+    return '<div class="ledger-row">' +
+      '<div><div style="font-weight:600;">' + r.month.replace('-','年') + '月</div>' +
+      '<div class="ledger-date">手取¥' + (r.tedori||0).toLocaleString() + ' / 社保¥' + shakai.toLocaleString() + '</div></div>' +
+      '<div style="display:flex;align-items:center;gap:8px;">' +
+      '<span class="blue" style="font-weight:600;">¥' + (r.salary||0).toLocaleString() + '</span>' +
+      '<button class="delete-btn" onclick="deleteKyuyo(\'' + r.month + '\')"><i class="ti ti-trash"></i></button>' +
+      '</div></div>';
+  }).join('');
+}
+
+async function deleteKyuyo(month) {
+  if (!confirm(month.replace('-','年') + '月の給与記録を削除しますか？')) return;
+  db.kyuyo = db.kyuyo.filter(r => r.month !== month);
+  saveLocalCache();
+  await pushToServer('saveKyuyo', { month, _delete: true });
+  renderKyuyoList(); populateMonthSelects();
+  showToast('削除しました', 'kyuyo-toast');
+}
+
 async function recordKyuyo() {
   const sel = document.getElementById('kyuyo-month');
   const month = sel && sel.value;
-  const salary = parseFloat(document.getElementById('k-salary').value) || db.kyuyoSettings.salary || 45000;
-  const shakai = parseFloat(document.getElementById('k-shakai').value) || db.kyuyoSettings.shakai || 23124;
-  const k = calcKyuyo(salary, shakai);
-  const record = { month, salary: k.salary, shakai: k.shakai, honnin: k.honnin, kaisha: k.kaisha, tedori: k.tedori };
+  if (!month) { showToast('月を選んでください', 'kyuyo-toast', 'err'); return; }
+  const k = getKyuyoInputs();
+  const record = {
+    month,
+    salary:        k.salary,
+    gensen:        k.gensen,
+    kenkoHonnin:   k.kenkoHonnin,
+    nenkinHonnin:  k.nenkinHonnin,
+    kenkoKaisha:   k.kenkoKaisha,
+    nenkinKaisha:  k.nenkinKaisha,
+    kosodate:      k.kosodate,
+    tedori:        k.tedori,
+    // 後方互換用
+    shakai:        k.shakhaiTotal,
+    honnin:        k.kenkoHonnin + k.nenkinHonnin,
+    kaisha:        k.kenkoKaisha + k.nenkinKaisha + k.kosodate
+  };
   const idx = db.kyuyo.findIndex(r => r.month === month);
   if (idx >= 0) db.kyuyo[idx] = record; else db.kyuyo.push(record);
   db.kyuyo.sort((a, b) => a.month.localeCompare(b.month));
   saveLocalCache();
   const ok = await pushToServer('saveKyuyo', record);
   if (ok) showToast(month.replace('-', '年') + '月の給与・社保を記録しました', 'kyuyo-toast');
-  checkKyuyoAlready(); populateMonthSelects();
+  onKyuyoMonthChange(); populateMonthSelects();
 }
+
+// 後方互換（古いデータ対応）
+function checkKyuyoAlready() { onKyuyoMonthChange(); }
+function saveKyuyoSettings() { saveKyuyoDefaults(); }
 
 // ============================================
 // 売上CSV取込

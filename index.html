@@ -352,47 +352,75 @@ table.dt .amt{text-align:right;font-variant-numeric:tabular-nums;}
 
       <!-- 給与・社保 -->
       <div id="tab-kyuyo" class="section">
-        <div class="row2-pc">
-        <div class="card">
-          <div class="card-title"><i class="ti ti-settings"></i>毎月の設定</div>
-          <div class="setting-row"><label>役員報酬（総支給）</label><input type="number" id="k-salary" placeholder="45000" /><span>円</span></div>
-          <div class="setting-row"><label>社会保険料合計</label><input type="number" id="k-shakai" placeholder="23124" oninput="updateKyuyoPreview()" /><span>円</span></div>
-          <div style="font-size:11px;color:var(--text-sub);margin-bottom:10px;">※ 納入告知書の合計額（会社負担＋本人負担）</div>
-          <button class="btn btn-soft" onclick="saveKyuyoSettings()"><i class="ti ti-device-floppy"></i>設定を保存</button>
-        </div>
-        <div class="card">
-          <div class="card-title"><i class="ti ti-calculator"></i>毎月の内訳（自動計算）</div>
-          <div class="jizuke-box">
-            <div class="jizuke-row"><span>役員報酬（総支給）</span><span class="green" id="prev-salary">¥45,000</span></div>
-            <div class="jizuke-row"><span>社会保険料・本人負担分</span><span class="red" id="prev-honnin">¥11,562</span></div>
-            <div class="jizuke-row"><span>源泉所得税</span><span id="prev-gensen">¥0</span></div>
-            <div class="jizuke-row"><span style="font-weight:600;">手取り振込額</span><span style="font-weight:600;" id="prev-tedori">¥33,438</span></div>
-            <div class="jizuke-row"><span>社会保険料・会社負担分</span><span class="red" id="prev-kaisha">¥11,562</span></div>
-            <div class="jizuke-row"><span style="font-weight:600;">会社から出るお金（月計）</span><span class="red" style="font-weight:600;" id="prev-total">¥56,562</span></div>
-          </div>
-        </div>
-        </div>
 
+        <!-- 月選択と記録状況 -->
         <div class="card">
           <div class="card-title"><i class="ti ti-calendar"></i>記録する月</div>
-          <select id="kyuyo-month" style="margin-bottom:12px;"></select>
-          <div id="kyuyo-already" style="display:none;margin-bottom:10px;"><span class="already-badge"><i class="ti ti-check"></i> この月は記録済み</span></div>
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+            <select id="kyuyo-month" style="flex:1;" onchange="onKyuyoMonthChange()"></select>
+            <div id="kyuyo-already" style="display:none;"><span class="already-badge"><i class="ti ti-check"></i> 記録済み</span></div>
+          </div>
+
+          <!-- 入力フォーム -->
           <div class="row2-pc">
-          <div class="jizuke-box">
-            <div class="jizuke-title">① 役員報酬の振込（仕訳）</div>
-            <div class="jizuke-row"><span>借方：役員報酬</span><span class="blue" id="j1-salary">¥45,000</span></div>
-            <div class="jizuke-row"><span>貸方：預り金（社保本人）</span><span id="j1-honnin">¥11,562</span></div>
-            <div class="jizuke-row"><span>貸方：普通預金（手取）</span><span id="j1-tedori">¥33,438</span></div>
+            <div>
+              <div class="card-title" style="margin-top:8px;"><i class="ti ti-coin"></i>役員報酬</div>
+              <div class="setting-row"><label>総支給額</label><input type="number" id="k-salary" placeholder="45000" oninput="updateKyuyoPreview()" /><span>円</span></div>
+              <div class="setting-row"><label>源泉所得税</label><input type="number" id="k-gensen" placeholder="0" oninput="updateKyuyoPreview()" /><span>円</span></div>
+            </div>
+            <div>
+              <div class="card-title" style="margin-top:8px;"><i class="ti ti-shield"></i>社会保険料（本人負担分）</div>
+              <div class="setting-row"><label>健康保険料</label><input type="number" id="k-kenko-honnin" placeholder="3352" oninput="updateKyuyoPreview()" /><span>円</span></div>
+              <div class="setting-row"><label>厚生年金</label><input type="number" id="k-nenkin-honnin" placeholder="8052" oninput="updateKyuyoPreview()" /><span>円</span></div>
+            </div>
           </div>
-          <div class="jizuke-box">
-            <div class="jizuke-title">② 社会保険料の納付（仕訳）</div>
-            <div class="jizuke-row"><span>借方：法定福利費（会社分）</span><span class="blue" id="j2-kaisha">¥11,562</span></div>
-            <div class="jizuke-row"><span>借方：預り金（本人分）</span><span class="blue" id="j2-honnin">¥11,562</span></div>
-            <div class="jizuke-row"><span>貸方：普通預金（納付）</span><span id="j2-total">¥23,124</span></div>
+          <div class="card-title" style="margin-top:4px;"><i class="ti ti-building"></i>社会保険料（会社負担分）</div>
+          <div class="row2-pc">
+            <div>
+              <div class="setting-row"><label>健康保険料</label><input type="number" id="k-kenko-kaisha" placeholder="3352" oninput="updateKyuyoPreview()" /><span>円</span></div>
+              <div class="setting-row"><label>厚生年金</label><input type="number" id="k-nenkin-kaisha" placeholder="8052" oninput="updateKyuyoPreview()" /><span>円</span></div>
+            </div>
+            <div>
+              <div class="setting-row"><label>子育て拠出金</label><input type="number" id="k-kosodate" placeholder="316" oninput="updateKyuyoPreview()" /><span>円</span></div>
+            </div>
           </div>
+
+          <button class="btn btn-soft" onclick="saveKyuyoDefaults()" style="margin-bottom:12px;"><i class="ti ti-device-floppy"></i>この金額を既定値として保存</button>
+        </div>
+
+        <!-- 自動計算プレビュー -->
+        <div class="card">
+          <div class="card-title"><i class="ti ti-calculator"></i>仕訳プレビュー（自動計算）</div>
+          <div class="row2-pc">
+            <div class="jizuke-box">
+              <div class="jizuke-title">① 役員報酬の振込</div>
+              <div class="jizuke-row"><span>借方：役員報酬</span><span class="blue" id="prev-salary">¥45,000</span></div>
+              <div class="jizuke-row"><span>貸方：預り金（健保本人）</span><span id="prev-kenko-honnin">¥3,352</span></div>
+              <div class="jizuke-row"><span>貸方：預り金（年金本人）</span><span id="prev-nenkin-honnin">¥8,052</span></div>
+              <div class="jizuke-row"><span>貸方：預り金（源泉税）</span><span id="prev-gensen-disp">¥0</span></div>
+              <div class="jizuke-row" style="font-weight:600;"><span>貸方：普通預金（手取）</span><span id="prev-tedori">¥33,596</span></div>
+            </div>
+            <div class="jizuke-box">
+              <div class="jizuke-title">② 社会保険料の納付（照合用）</div>
+              <div class="jizuke-row"><span>借方：法定福利費（健保）</span><span class="blue" id="prev-kenko-kaisha">¥3,352</span></div>
+              <div class="jizuke-row"><span>借方：法定福利費（年金）</span><span class="blue" id="prev-nenkin-kaisha">¥8,052</span></div>
+              <div class="jizuke-row"><span>借方：法定福利費（子育て）</span><span class="blue" id="prev-kosodate">¥316</span></div>
+              <div class="jizuke-row"><span>借方：預り金（健保本人）</span><span class="blue" id="prev-kenko-honnin2">¥3,352</span></div>
+              <div class="jizuke-row"><span>借方：預り金（年金本人）</span><span class="blue" id="prev-nenkin-honnin2">¥8,052</span></div>
+              <div class="jizuke-row" style="font-weight:600;"><span>貸方：普通預金（納付）</span><span id="prev-shakai-total">¥23,124</span></div>
+            </div>
+          </div>
+          <div class="jizuke-box" style="margin-top:10px;">
+            <div class="jizuke-row"><span style="font-weight:600;">会社から出るお金（月計）</span><span class="red" style="font-weight:600;" id="prev-total">¥0</span></div>
           </div>
           <button class="btn btn-primary" onclick="recordKyuyo()" style="margin-top:12px;background:var(--blue);"><i class="ti ti-check"></i>この月の給与・社保を記録する</button>
           <div class="toast ok" id="kyuyo-toast"></div>
+        </div>
+
+        <!-- 記録済み一覧 -->
+        <div class="card">
+          <div class="card-title"><i class="ti ti-list"></i>記録済み一覧</div>
+          <div id="kyuyo-list"><div class="empty-state">まだ記録がありません</div></div>
         </div>
       </div>
 
