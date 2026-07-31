@@ -147,8 +147,8 @@ function parseYucho(rows) {
     } else if (/料　金|料金|手数料/.test(d1) && harai > 0) {
       debit = '支払手数料'; credit = '普通預金（ゆうちょ）'; shopName = '手数料';
     } else if (/カード/.test(d1) && nyukin > 0) {
-      // ATMで野菜売上などの現金をゆうちょへ入金
-      debit = '普通預金（ゆうちょ）'; credit = '売上高'; shopName = 'ATM入金（現金→ゆうちょ）';
+      // ATMで現金をゆうちょへ入金（資金移動）
+      debit = '普通預金（ゆうちょ）'; credit = '現金'; shopName = 'ATM入金（現金→ゆうちょ）';
     } else if (/振込/.test(d1) && nyukin > 0) {
       debit = '普通預金（ゆうちょ）'; credit = '売上高'; shopName = d1 + (d2 ? ' '+d2 : '');
     } else if (nyukin > 0) {
