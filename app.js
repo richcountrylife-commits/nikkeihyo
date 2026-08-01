@@ -147,6 +147,7 @@ function refreshTab(name) {
   if (name === 'kyuyo') initKyuyo();
   if (name === 'import') renderBizSelects();
   if (name === 'meisai') { if (!db.meisai) db.meisai = []; renderMeisaiList(); updateMeisaiBadge(); }
+  if (name === 'santei') initSantei();
 }
 
 function getMonths() {
@@ -1431,4 +1432,206 @@ function applyShakhaiDetail(itemId) {
   item.shakhaiDetail = detail;
   saveLocalCache();
   showMeisaiToast('内訳を保存しました ✓');
+}
+
+// ============================================
+// 算定基礎届 計算補助
+// ============================================
+
+// 標準報酬月額等級表（令和7年度・協会けんぽ）
+const SANTEI_GRADES = [
+  { grade:1,  hyojun:58000,  ijo:0,      miman:63000  },
+  { grade:2,  hyojun:68000,  ijo:63000,  miman:73000  },
+  { grade:3,  hyojun:78000,  ijo:73000,  miman:83000  },
+  { grade:4,  hyojun:88000,  ijo:83000,  miman:93000  },
+  { grade:5,  hyojun:98000,  ijo:93000,  miman:101000 },
+  { grade:6,  hyojun:104000, ijo:101000, miman:107000 },
+  { grade:7,  hyojun:110000, ijo:107000, miman:114000 },
+  { grade:8,  hyojun:118000, ijo:114000, miman:122000 },
+  { grade:9,  hyojun:126000, ijo:122000, miman:130000 },
+  { grade:10, hyojun:134000, ijo:130000, miman:138000 },
+  { grade:11, hyojun:142000, ijo:138000, miman:146000 },
+  { grade:12, hyojun:150000, ijo:146000, miman:155000 },
+  { grade:13, hyojun:160000, ijo:155000, miman:165000 },
+  { grade:14, hyojun:170000, ijo:165000, miman:175000 },
+  { grade:15, hyojun:180000, ijo:175000, miman:185000 },
+  { grade:16, hyojun:190000, ijo:185000, miman:195000 },
+  { grade:17, hyojun:200000, ijo:195000, miman:210000 },
+  { grade:18, hyojun:220000, ijo:210000, miman:230000 },
+  { grade:19, hyojun:240000, ijo:230000, miman:250000 },
+  { grade:20, hyojun:260000, ijo:250000, miman:270000 },
+  { grade:21, hyojun:280000, ijo:270000, miman:290000 },
+  { grade:22, hyojun:300000, ijo:290000, miman:310000 },
+  { grade:23, hyojun:320000, ijo:310000, miman:330000 },
+  { grade:24, hyojun:340000, ijo:330000, miman:350000 },
+  { grade:25, hyojun:360000, ijo:350000, miman:370000 },
+  { grade:26, hyojun:380000, ijo:370000, miman:395000 },
+  { grade:27, hyojun:410000, ijo:395000, miman:425000 },
+  { grade:28, hyojun:440000, ijo:425000, miman:455000 },
+  { grade:29, hyojun:470000, ijo:455000, miman:485000 },
+  { grade:30, hyojun:500000, ijo:485000, miman:999999 },
+];
+
+// 健康保険料率（広島県・令和7年度）
+const KENKO_RATE = 0.1002; // 10.02%
+// 厚生年金保険料率
+const NENKIN_RATE = 0.183; // 18.3%
+
+function getGrade(heikingaku) {
+  for (const g of SANTEI_GRADES) {
+    if (heikingaku >= g.ijo && heikingaku < g.miman) return g;
+  }
+  return SANTEI_GRADES[SANTEI_GRADES.length - 1];
+}
+
+function initSantei() {
+  // 対象年度のセレクトを設定
+  const sel = document.getElementById('santei-year');
+  if (!sel) return;
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  let opts = '';
+  for (let y = currentYear - 2; y <= currentYear; y++) {
+    const wareki = y - 2018; // 令和
+    opts += '<option value="' + y + '"' + (y === currentYear ? ' selected' : '') + '>令和' + wareki + '年（' + y + '年）</option>';
+  }
+  sel.innerHTML = opts;
+  renderSantei();
+}
+
+function renderSantei() {
+  const sel = document.getElementById('santei-year');
+  if (!sel) return;
+  const year = parseInt(sel.value);
+  const months = ['04', '05', '06'].map(m => year + '-' + m);
+  const monthNames = ['4月', '5月', '6月'];
+  const area = document.getElementById('santei-months-area');
+  if (!area) return;
+
+  let html = '<div style="overflow-x:auto;"><table class="dt" style="min-width:500px;"><thead><tr>' +
+    '<th>支給月</th><th class="amt">通貨報酬（円）</th><th class="amt">現物報酬（円）</th>' +
+    '<th class="amt">合計（円）</th><th style="text-align:center;">支払基礎日数</th>' +
+    '</tr></thead><tbody>';
+
+  months.forEach((month, i) => {
+    // 給与タブから自動取得
+    const kyuyo = db.kyuyo.find(k => k.month === month);
+    const salary = kyuyo ? kyuyo.salary : 0;
+    const autoText = kyuyo ? '<span style="font-size:10px;color:var(--green);">✓ 給与タブより</span>' : '<span style="font-size:10px;color:var(--amber);">手入力</span>';
+
+    html += '<tr>' +
+      '<td style="font-weight:600;">' + monthNames[i] + autoText + '</td>' +
+      '<td><input type="number" id="santei-tsuka-' + i + '" value="' + salary + '" ' +
+      'style="text-align:right;width:120px;" oninput="calcSantei()" /></td>' +
+      '<td><input type="number" id="santei-genbutsu-' + i + '" value="0" ' +
+      'style="text-align:right;width:120px;" oninput="calcSantei()" /></td>' +
+      '<td class="amt" id="santei-total-' + i + '" style="font-weight:600;">¥' + salary.toLocaleString() + '</td>' +
+      '<td style="text-align:center;"><input type="number" id="santei-days-' + i + '" value="' +
+      (month.endsWith('-04') ? 30 : month.endsWith('-05') ? 31 : 30) + '" ' +
+      'style="text-align:center;width:60px;" oninput="calcSantei()" /></td>' +
+      '</tr>';
+  });
+
+  html += '</tbody></table></div>';
+  html += '<div style="margin-top:10px;font-size:11px;color:var(--text-sub);">※ 支払基礎日数が17日未満の月は除外されます</div>';
+  html += '<button class="btn btn-primary" onclick="calcSantei()" style="margin-top:12px;"><i class="ti ti-calculator"></i>計算する</button>';
+
+  area.innerHTML = html;
+  calcSantei();
+}
+
+function calcSantei() {
+  // 各月の合計を計算
+  let validMonths = [];
+  for (let i = 0; i < 3; i++) {
+    const tsuka = parseFloat(document.getElementById('santei-tsuka-' + i) && document.getElementById('santei-tsuka-' + i).value) || 0;
+    const genbutsu = parseFloat(document.getElementById('santei-genbutsu-' + i) && document.getElementById('santei-genbutsu-' + i).value) || 0;
+    const days = parseFloat(document.getElementById('santei-days-' + i) && document.getElementById('santei-days-' + i).value) || 0;
+    const total = tsuka + genbutsu;
+
+    // 合計セルを更新
+    const totalEl = document.getElementById('santei-total-' + i);
+    if (totalEl) totalEl.textContent = '¥' + total.toLocaleString();
+
+    // 支払基礎日数17日以上の月のみ対象
+    if (days >= 17) {
+      validMonths.push({ tsuka, genbutsu, total, days });
+    }
+  }
+
+  const resultCard = document.getElementById('santei-result-card');
+  const resultEl = document.getElementById('santei-result');
+  const checklistEl = document.getElementById('santei-checklist');
+  if (!resultEl || !resultCard) return;
+
+  if (validMonths.length === 0) {
+    resultCard.style.display = 'none';
+    return;
+  }
+
+  // 総計・平均額を計算
+  const souKeisan = validMonths.reduce((s, m) => s + m.total, 0);
+  const heikingaku = Math.round(souKeisan / validMonths.length);
+
+  // 等級を決定
+  const grade = getGrade(heikingaku);
+
+  // 保険料を計算
+  const kenkoHonnin = Math.floor(grade.hyojun * KENKO_RATE / 2);
+  const kenkoKaisha = grade.hyojun * KENKO_RATE / 2 - kenkoHonnin > 0
+    ? Math.ceil(grade.hyojun * KENKO_RATE / 2) : kenkoHonnin;
+  const nenkinHonnin = Math.floor(grade.hyojun * NENKIN_RATE / 2);
+  const nenkinKaisha = grade.hyojun * NENKIN_RATE / 2 - nenkinHonnin > 0
+    ? Math.ceil(grade.hyojun * NENKIN_RATE / 2) : nenkinHonnin;
+
+  const wareki = parseInt(document.getElementById('santei-year').value) - 2018;
+
+  resultCard.style.display = 'block';
+  resultEl.innerHTML =
+    '<div class="row2-pc" style="gap:10px;">' +
+    '<div class="jizuke-box">' +
+    '<div class="jizuke-title">算定結果</div>' +
+    '<div class="jizuke-row"><span>対象月数</span><span style="font-weight:600;">' + validMonths.length + 'ヶ月</span></div>' +
+    '<div class="jizuke-row"><span>総計</span><span style="font-weight:600;">¥' + souKeisan.toLocaleString() + '</span></div>' +
+    '<div class="jizuke-row"><span>平均額（⑮）</span><span style="font-weight:600;font-size:15px;color:var(--blue);">¥' + heikingaku.toLocaleString() + '</span></div>' +
+    '<div class="jizuke-row"><span>新標準報酬月額</span><span style="font-weight:700;font-size:16px;color:var(--green);">¥' + grade.hyojun.toLocaleString() + '</span></div>' +
+    '<div class="jizuke-row"><span>等級（健保）</span><span style="font-weight:600;">' + grade.grade + '等級</span></div>' +
+    '</div>' +
+    '<div class="jizuke-box">' +
+    '<div class="jizuke-title">令和' + (wareki + 1) + '年9月以降の保険料（月額）</div>' +
+    '<div class="jizuke-row"><span>健康保険料（本人）</span><span class="red" style="font-weight:600;">¥' + kenkoHonnin.toLocaleString() + '</span></div>' +
+    '<div class="jizuke-row"><span>健康保険料（会社）</span><span class="red" style="font-weight:600;">¥' + kenkoKaisha.toLocaleString() + '</span></div>' +
+    '<div class="jizuke-row"><span>厚生年金（本人）</span><span class="red" style="font-weight:600;">¥' + nenkinHonnin.toLocaleString() + '</span></div>' +
+    '<div class="jizuke-row"><span>厚生年金（会社）</span><span class="red" style="font-weight:600;">¥' + nenkinKaisha.toLocaleString() + '</span></div>' +
+    '<div class="jizuke-row" style="font-weight:700;"><span>合計（納付額目安）</span><span class="red">¥' + (kenkoHonnin + kenkoKaisha + nenkinHonnin + nenkinKaisha).toLocaleString() + '</span></div>' +
+    '</div></div>';
+
+  // 転記チェックリスト
+  const prevKenko = parseInt(document.getElementById('santei-prev-kenko') && document.getElementById('santei-prev-kenko').value) || 0;
+  const prevNenkin = parseInt(document.getElementById('santei-prev-nenkin') && document.getElementById('santei-prev-nenkin').value) || 0;
+  const newHyojun = grade.hyojun / 1000;
+  const changed = newHyojun !== prevKenko || newHyojun !== prevNenkin;
+
+  checklistEl.innerHTML = [
+    { label: '①被保険者整理番号', value: document.getElementById('santei-bangou') && document.getElementById('santei-bangou').value || '' },
+    { label: '②被保険者氏名', value: document.getElementById('santei-name') && document.getElementById('santei-name').value || '' },
+    { label: '③生年月日', value: document.getElementById('santei-birthday') && document.getElementById('santei-birthday').value || '' },
+    { label: '④適用年月', value: '令和' + (wareki + 1) + '年9月' },
+    { label: '⑤従前の標準報酬月額（健保）', value: prevKenko + '千円' },
+    { label: '⑤従前の標準報酬月額（厚年）', value: prevNenkin + '千円' },
+    { label: '⑭総計', value: '¥' + souKeisan.toLocaleString() },
+    { label: '⑮平均額', value: '¥' + heikingaku.toLocaleString() },
+    { label: '新標準報酬月額', value: '¥' + grade.hyojun.toLocaleString() + '（' + grade.grade + '等級）', highlight: true },
+    { label: '変更の有無', value: changed ? '変更あり → 次回9月改定' : '変更なし（前回と同額）', highlight: changed },
+  ].map(item =>
+    '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border-light);">' +
+    '<i class="ti ti-checkbox" style="color:var(--text-sub);font-size:14px;"></i>' +
+    '<span style="font-size:12px;color:var(--text-sub);min-width:200px;">' + item.label + '</span>' +
+    '<span style="font-size:13px;font-weight:' + (item.highlight ? '700' : '500') + ';color:' + (item.highlight ? 'var(--green)' : 'var(--text)') + ';">' + item.value + '</span>' +
+    '</div>'
+  ).join('');
+}
+
+function printSantei() {
+  window.print();
 }

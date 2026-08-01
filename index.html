@@ -281,6 +281,7 @@ table.dt .amt{text-align:right;font-variant-numeric:tabular-nums;}
       <button data-tab="import" onclick="switchTab('import',this)"><i class="ti ti-upload"></i> 売上CSV取込</button>
       <button data-tab="geppo" onclick="switchTab('geppo',this)"><i class="ti ti-chart-bar"></i> 月報</button>
       <button data-tab="ledger" onclick="switchTab('ledger',this)"><i class="ti ti-list"></i> 仕訳帳</button>
+      <button data-tab="santei" onclick="switchTab('santei',this)"><i class="ti ti-file-certificate"></i> 算定基礎届</button>
       <button data-tab="export" onclick="switchTab('export',this)"><i class="ti ti-download"></i> 出力・設定</button>
     </nav>
 
@@ -293,6 +294,7 @@ table.dt .amt{text-align:right;font-variant-numeric:tabular-nums;}
         <button class="tab-btn" data-tab="import" onclick="switchTab('import',this)"><i class="ti ti-upload"></i>取込</button>
         <button class="tab-btn" data-tab="geppo" onclick="switchTab('geppo',this)"><i class="ti ti-chart-bar"></i>月報</button>
         <button class="tab-btn" data-tab="ledger" onclick="switchTab('ledger',this)"><i class="ti ti-list"></i>仕訳</button>
+        <button class="tab-btn" data-tab="santei" onclick="switchTab('santei',this)"><i class="ti ti-file-certificate"></i>算定</button>
         <button class="tab-btn" data-tab="export" onclick="switchTab('export',this)"><i class="ti ti-download"></i>出力</button>
       </div>
 
@@ -600,6 +602,74 @@ table.dt .amt{text-align:right;font-variant-numeric:tabular-nums;}
           <select id="ledger-biz" onchange="renderLedger()"></select>
         </div>
         <div class="card"><div id="ledger-entries"><div class="empty-state">データなし</div></div></div>
+      </div>
+
+      <!-- 算定基礎届 -->
+      <div id="tab-santei" class="section">
+        <div class="card">
+          <div class="card-title"><i class="ti ti-file-certificate"></i>算定基礎届 計算補助</div>
+          <p style="font-size:12px;color:var(--text-sub);margin-bottom:12px;">4月・5月・6月の報酬月額を基に標準報酬月額を計算します。計算結果を日本年金機構の届出用紙またはExcelに転記してください。</p>
+
+          <!-- 対象年度 -->
+          <div class="form-row">
+            <label class="form-label">対象年度</label>
+            <select id="santei-year" onchange="renderSantei()" style="max-width:200px;">
+            </select>
+          </div>
+        </div>
+
+        <!-- 被保険者情報 -->
+        <div class="card">
+          <div class="card-title"><i class="ti ti-user"></i>被保険者情報</div>
+          <div class="row2-pc">
+            <div class="form-row">
+              <label class="form-label">被保険者整理番号</label>
+              <input type="text" id="santei-bangou" value="1" style="max-width:120px;" />
+            </div>
+            <div class="form-row">
+              <label class="form-label">被保険者氏名</label>
+              <input type="text" id="santei-name" value="金本　尚也" />
+            </div>
+          </div>
+          <div class="row2-pc">
+            <div class="form-row">
+              <label class="form-label">生年月日</label>
+              <input type="text" id="santei-birthday" value="昭和59年3月19日" />
+            </div>
+            <div class="form-row">
+              <label class="form-label">従前の標準報酬月額</label>
+              <div style="display:flex;gap:8px;align-items:center;">
+                <span style="font-size:12px;">健保</span>
+                <input type="number" id="santei-prev-kenko" value="58" style="max-width:80px;" />
+                <span style="font-size:12px;">千円　厚年</span>
+                <input type="number" id="santei-prev-nenkin" value="88" style="max-width:80px;" />
+                <span style="font-size:12px;">千円</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 各月の報酬入力 -->
+        <div class="card">
+          <div class="card-title"><i class="ti ti-coin"></i>各月の報酬月額（給与タブから自動取得）</div>
+          <div id="santei-months-area"></div>
+        </div>
+
+        <!-- 計算結果 -->
+        <div class="card" id="santei-result-card" style="display:none;">
+          <div class="card-title"><i class="ti ti-calculator"></i>計算結果</div>
+          <div id="santei-result"></div>
+
+          <!-- 転記用チェックリスト -->
+          <div style="margin-top:16px;background:var(--bg);border-radius:var(--radius-md);padding:14px;">
+            <div style="font-size:12px;font-weight:600;margin-bottom:8px;color:var(--text-sub);">届出用紙への転記チェックリスト</div>
+            <div id="santei-checklist"></div>
+          </div>
+
+          <button class="btn btn-outline" style="margin-top:12px;width:100%;" onclick="printSantei()">
+            <i class="ti ti-printer"></i>印刷用に表示
+          </button>
+        </div>
       </div>
 
       <!-- 出力・設定 -->
