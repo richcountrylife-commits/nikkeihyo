@@ -534,12 +534,23 @@ table.dt .amt{text-align:right;font-variant-numeric:tabular-nums;}
         <!-- 期間指定モード -->
         <div id="geppo-period-mode" style="display:none;">
           <div class="card" style="margin-bottom:14px;">
-            <div class="card-title"><i class="ti ti-calendar-range"></i>期間指定</div>
-            <div class="row2" style="margin-bottom:10px;">
-              <div><label class="form-label">開始月</label><select id="geppo-from" onchange="renderPeriodGeppo()"></select></div>
-              <div><label class="form-label">終了月</label><select id="geppo-to" onchange="renderPeriodGeppo()"></select></div>
+            <div class="card-title"><i class="ti ti-calendar-range"></i>期を選択</div>
+            <!-- 期セレクター -->
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+              <button class="btn btn-outline" style="padding:8px 12px;" onclick="shiftPeriod(-1)"><i class="ti ti-chevron-left"></i></button>
+              <select id="period-select" onchange="onPeriodSelect()" style="flex:1;font-weight:600;font-size:13px;"></select>
+              <button class="btn btn-outline" style="padding:8px 12px;" onclick="shiftPeriod(1)"><i class="ti ti-chevron-right"></i></button>
             </div>
-            <button class="btn btn-soft" style="width:100%;font-size:12px;" onclick="setFiscalYear()"><i class="ti ti-leaf"></i> 今期（7月〜翌6月）を選択</button>
+            <!-- 期間表示 -->
+            <div id="period-range-disp" style="text-align:center;font-size:12px;color:var(--text-sub);margin-bottom:12px;"></div>
+            <!-- カスタム期間 -->
+            <div style="border-top:1px solid var(--border-light);padding-top:10px;margin-top:4px;">
+              <div class="card-title" style="font-size:11px;margin-bottom:8px;">カスタム期間</div>
+              <div class="row2">
+                <div><label class="form-label">開始月</label><select id="geppo-from" onchange="onCustomPeriod()"></select></div>
+                <div><label class="form-label">終了月</label><select id="geppo-to" onchange="onCustomPeriod()"></select></div>
+              </div>
+            </div>
           </div>
         </div>
 

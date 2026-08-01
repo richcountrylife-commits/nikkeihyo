@@ -1106,6 +1106,78 @@ async function saveMeisaiToServer() {
 // ============================================
 let geppoMode = 'month';
 
+// 第1期の開始年（2021年7月）
+const FIRST_PERIOD_YEAR = 2021;
+
+function getPeriodInfo(n) {
+  const startYear = FIRST_PERIOD_YEAR + n - 1;
+  return {
+    n,
+    from: startYear + '-07',
+    to: (startYear + 1) + '-06',
+    label: '第' + n + '期（' + startYear + '年7月〜' + (startYear+1) + '年6月）'
+  };
+}
+
+function getCurrentPeriodNum() {
+  const now = new Date();
+  const year = now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
+  return year - FIRST_PERIOD_YEAR + 1;
+}
+
+function initPeriodSelect() {
+  const sel = document.getElementById('period-select');
+  if (!sel) return;
+  const max = getCurrentPeriodNum() + 2;
+  let opts = '';
+  for (let i = 1; i <= max; i++) {
+    opts += '<option value="' + i + '">' + getPeriodInfo(i).label + '</option>';
+  }
+  sel.innerHTML = opts;
+  sel.value = getCurrentPeriodNum();
+  onPeriodSelect();
+}
+
+function onPeriodSelect() {
+  const sel = document.getElementById('period-select');
+  if (!sel || !sel.value) return;
+  const p = getPeriodInfo(parseInt(sel.value));
+  const fromSel = document.getElementById('geppo-from');
+  const toSel = document.getElementById('geppo-to');
+  if (fromSel) fromSel.value = p.from;
+  if (toSel) toSel.value = p.to;
+  const disp = document.getElementById('period-range-disp');
+  if (disp) disp.textContent = p.from.replace('-','年') + '月 〜 ' + p.to.replace('-','年') + '月';
+  renderPeriodGeppo();
+}
+
+function shiftPeriod(dir) {
+  const sel = document.getElementById('period-select');
+  if (!sel) return;
+  const current = parseInt(sel.value) || getCurrentPeriodNum();
+  const next = current + dir;
+  if (next < 1) return;
+  // 新しい期がない場合は追加
+  if (!sel.querySelector('option[value="' + next + '"]')) {
+    const p = getPeriodInfo(next);
+    const opt = document.createElement('option');
+    opt.value = next; opt.textContent = p.label;
+    if (dir > 0) sel.appendChild(opt); else sel.insertBefore(opt, sel.firstChild);
+  }
+  sel.value = next;
+  onPeriodSelect();
+}
+
+function onCustomPeriod() {
+  const sel = document.getElementById('period-select');
+  if (sel) sel.value = '';
+  const from = document.getElementById('geppo-from') && document.getElementById('geppo-from').value;
+  const to = document.getElementById('geppo-to') && document.getElementById('geppo-to').value;
+  const disp = document.getElementById('period-range-disp');
+  if (disp && from && to) disp.textContent = from.replace('-','年') + '月 〜 ' + to.replace('-','年') + '月（カスタム）';
+  renderPeriodGeppo();
+}
+
 function setGeppoMode(mode) {
   geppoMode = mode;
   document.getElementById('geppo-month-mode').style.display = mode === 'month' ? 'block' : 'none';
@@ -1114,39 +1186,25 @@ function setGeppoMode(mode) {
   document.getElementById('g-period-table-wrap').style.display = mode === 'period' ? 'block' : 'none';
   document.getElementById('geppo-mode-month').className = mode === 'month' ? 'btn btn-primary' : 'btn btn-outline';
   document.getElementById('geppo-mode-period').className = mode === 'period' ? 'btn btn-primary' : 'btn btn-outline';
-
-  if (mode === 'period') {
-    populatePeriodSelects();
-    renderPeriodGeppo();
-  } else {
-    renderGeppo();
-  }
+  if (mode === 'period') { populatePeriodSelects(); initPeriodSelect(); renderPeriodGeppo(); }
+  else renderGeppo();
 }
 
 function populatePeriodSelects() {
-  const months = getMonths().reverse(); // 昇順
+  const months = getMonths().slice().reverse();
   const fromSel = document.getElementById('geppo-from');
   const toSel = document.getElementById('geppo-to');
   if (!fromSel || !toSel) return;
   const opts = months.map(m => '<option value="' + m + '">' + m.replace('-','年') + '月</option>').join('');
-  fromSel.innerHTML = opts;
-  toSel.innerHTML = opts;
-  // デフォルトは最初〜最後
-  fromSel.value = months[0];
-  toSel.value = months[months.length - 1];
+  fromSel.innerHTML = opts; toSel.innerHTML = opts;
+  const p = getPeriodInfo(getCurrentPeriodNum());
+  if (months.includes(p.from)) fromSel.value = p.from; else fromSel.value = months[0];
+  if (months.includes(p.to)) toSel.value = p.to; else toSel.value = months[months.length-1];
 }
 
 function setFiscalYear() {
-  // 今期：7月〜翌6月
-  const now = new Date();
-  const year = now.getMonth() >= 6 ? now.getFullYear() : now.getFullYear() - 1;
-  const from = year + '-07';
-  const to = (year + 1) + '-06';
-  const fromSel = document.getElementById('geppo-from');
-  const toSel = document.getElementById('geppo-to');
-  if (fromSel) fromSel.value = from;
-  if (toSel) toSel.value = to;
-  renderPeriodGeppo();
+  const sel = document.getElementById('period-select');
+  if (sel) { sel.value = getCurrentPeriodNum(); onPeriodSelect(); }
 }
 
 function calcGeppoForMonths(months, bizFilter) {
