@@ -1325,10 +1325,24 @@ function exportPeriodCSV(type) {
   const from = fromEl.value;
   const to = toEl.value;
   const allMonths = getMonths().filter(m => m >= from && m <= to).sort();
-  const NOT_EXPENSE_DEBITS = ['JCBカード','出光カード（未払金）','普通預金（ゆうちょ）','普通預金（あおぞら）','受取利息','仮受金','役員借入金','現金'];
 
   let csv = '', filename = '';
   const period = from + '〜' + to;
+
+  // 弥生会計の税区分判定
+  function yayoiZeiku(account, debit, credit) {
+    if (['売上高','売上'].includes(credit)) return '課税売上込10%';
+    if (['役員報酬','法定福利費','預り金'].includes(debit)) return '対象外';
+    if (['消耗品費','仕入','通信費','光熱費','燃料費','広告宣伝費','支払報酬'].includes(debit)) return '課税仕入込10%';
+    if (['租税公課','支払手数料'].includes(debit)) return '対象外';
+    if (credit === '受取利息') return '非課税売上';
+    return '対象外';
+  }
+
+  // 日付フォーマット（弥生形式：YYYY/MM/DD）
+  function yayoiDate(dateStr) {
+    return dateStr.replace(/-/g, '/');
+  }
 
   if (type === 'summary') {
     csv = '月,売上合計,経費合計,粗利益,役員報酬\n';
@@ -1341,13 +1355,13 @@ function exportPeriodCSV(type) {
     });
     csv += '合計,' + totalTs + ',' + totalTe + ',' + (totalTs - totalTe) + ',' + totalKyuyo + '\n';
     filename = '月別サマリー_' + period + '.csv';
-  } else {
-    // 期間仕訳CSV
+
+  } else if (type === 'jizuke') {
+    // 独自形式の期間仕訳CSV
     csv = '日付,口座・区分,借方科目,貸方科目,金額,利用先,摘要\n';
     allMonths.forEach(month => {
       const kyuyo = db.kyuyo.find(k => k.month === month);
       if (kyuyo) {
-        // 役員報酬のみ（社会保険料は銀行明細で処理）
         csv += month + '-01,給与,役員報酬,普通預金（ゆうちょ）,' + kyuyo.salary + ',役員報酬,\n';
       }
       db.entries.filter(e => e.date.startsWith(month)).forEach(e => {
@@ -1360,6 +1374,46 @@ function exportPeriodCSV(type) {
       });
     });
     filename = '期間仕訳_' + period + '.csv';
+
+  } else if (type === 'yayoi') {
+    // 弥生会計インポート用CSV
+    csv = '伝票日付,借方科目,借方補助科目,借方税区分,借方金額,貸方科目,貸方補助科目,貸方税区分,貸方金額,摘要,メモ\n';
+    allMonths.forEach(month => {
+      const kyuyo = db.kyuyo.find(k => k.month === month);
+      if (kyuyo) {
+        csv += yayoiDate(month + '-01') + ',役員報酬,,対象外,' + kyuyo.salary + ',普通預金,ゆうちょ銀行,対象外,' + kyuyo.salary + ',役員報酬,\n';
+      }
+      db.entries.filter(e => e.date.startsWith(month)).forEach(e => {
+        const d = yayoiDate(e.date);
+        if (e.salesCash > 0) {
+          csv += d + ',現金,,対象外,' + e.salesCash + ',売上高,,課税売上込10%,' + e.salesCash + ',現金売上（野菜）,\n';
+        }
+        (e.extraSales || []).forEach(es => {
+          csv += d + ',売掛金,,対象外,' + es.amount + ',売上高,,課税売上込10%,' + es.amount + ',"' + es.name + '",\n';
+        });
+        (e.expenses || []).forEach(ex => {
+          const zeiku = yayoiZeiku(ex.account, ex.account, '');
+          const hojo = ex.payment === 'JCB' ? 'JCBカード' : ex.payment === '郵便局' ? 'ゆうちょ銀行' : ex.payment === 'あおぞらネット' ? 'あおぞら銀行' : '';
+          const kashiKamoku = ex.payment === '現金' ? '現金' : '未払金';
+          csv += d + ',' + ex.account + ',,' + zeiku + ',' + ex.amount + ',' + kashiKamoku + ',' + hojo + ',対象外,' + ex.amount + ',"' + (ex.desc || ex.account) + '",\n';
+        });
+      });
+      (db.meisai || []).filter(m => m.date.startsWith(month) && m.checked).forEach(m => {
+        const d = yayoiDate(m.date);
+        const zeiku = yayoiZeiku(m.debit, m.debit, m.credit);
+        const kashiZeiku = m.credit === '売上高' ? '課税売上込10%' : '対象外';
+        // 資金移動は除外
+        const skipDebits = ['普通預金（ゆうちょ）','普通預金（あおぞら）','JCBカード','出光カード（未払金）'];
+        if (skipDebits.includes(m.debit) && m.credit !== '売上高') return;
+        const debitHojo = m.debit.includes('ゆうちょ') ? 'ゆうちょ銀行' : m.debit.includes('あおぞら') ? 'あおぞら銀行' : '';
+        const creditHojo = m.credit.includes('ゆうちょ') ? 'ゆうちょ銀行' : m.credit.includes('あおぞら') ? 'あおぞら銀行' : '';
+        const debitName = m.debit.replace('（ゆうちょ）','').replace('（あおぞら）','').replace('（未払金）','');
+        const creditName = m.credit.replace('（ゆうちょ）','').replace('（あおぞら）','').replace('（未払金）','');
+        const desc = (m.memo || m.shopName || '').substring(0, 30);
+        csv += d + ',' + debitName + ',' + debitHojo + ',' + zeiku + ',' + m.amount + ',' + creditName + ',' + creditHojo + ',' + kashiZeiku + ',' + m.amount + ',"' + desc + '",\n';
+      });
+    });
+    filename = '弥生インポート_' + period + '.csv';
   }
 
   const blob = new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8;' });
